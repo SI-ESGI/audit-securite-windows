@@ -2,7 +2,6 @@
 vérifier les droits d'administrateur et la politique d'exécution
 #>
 #Requires -RunAsAdministrator 
-#Requires -ExecutionPolicy Remotesigned
 
 <#
 .SYNOPSIS
