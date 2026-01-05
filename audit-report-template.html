@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport d'audit de sécurité Windows - {{COMPUTER_NAME}}</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.5;
+            color: #333;
+        }
+        h1 { 
+            color: #003366; 
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        h2 { 
+            color: #0066cc; 
+            margin-top: 30px; 
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        h3 {
+            color: #0099cc;
+            margin-top: 20px;
+        }
+        pre { 
+            background-color: #f5f5f5; 
+            padding: 10px; 
+            border-radius: 5px; 
+            overflow: auto;
+            font-family: Consolas, monospace;
+            font-size: 14px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .section { 
+            margin-bottom: 30px; 
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .success { color: green; }
+        .warning { color: orange; }
+        .danger { color: red; }
+        .info { 
+            background-color: #e6f7ff; 
+            border-left: 4px solid #1890ff;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .summary {
+            background-color: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        footer {
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rapport d'audit de sécurité Windows</h1>
+    <div class="summary">
+        <p><strong>Machine:</strong> {{COMPUTER_NAME}}</p>
+        <p><strong>Date:</strong> {{REPORT_DATE}}</p>
+        <p><strong>Système d'exploitation:</strong> {{OS_NAME}}</p>
+        <p><strong>Version:</strong> {{OS_VERSION}}</p>
+    </div>
+
+    <h2>Table des matières</h2>
+    <ul>
+        <li><a href="#system-info">Informations système</a></li>
+        <li><a href="#group-policy">Stratégies de groupe</a></li>
+        <li><a href="#users-groups">Utilisateurs et groupes</a></li>
+        <li><a href="#authentication">Authentification</a></li>
+        <li><a href="#services-processes">Services et processus</a></li>
+        <li><a href="#network">Réseau</a></li>
+        <li><a href="#software-security">Logiciels et sécurité</a></li>
+        <li><a href="#storage">Stockage</a></li>
+        <li><a href="#logging-audit">Journalisation et audit</a></li>
+    </ul>
+
+    <h2 id="system-info">Informations système</h2>
+    <div class="section">
+        <table>
+            <tr><th>Propriété</th><th>Valeur</th></tr>
+            <tr><td>Nom de l'ordinateur</td><td>{{SYSTEM_HOSTNAME}}</td></tr>
+            <tr><td>Domaine</td><td>{{SYSTEM_DOMAIN}}</td></tr>
+            <tr><td>Fabricant</td><td>{{SYSTEM_MANUFACTURER}}</td></tr>
+            <tr><td>Modèle</td><td>{{SYSTEM_MODEL}}</td></tr>
+            <tr><td>Version BIOS</td><td>{{SYSTEM_BIOS_VERSION}}</td></tr>
+            <tr><td>Système d'exploitation</td><td>{{SYSTEM_OS_NAME}}</td></tr>
+            <tr><td>Version</td><td>{{SYSTEM_OS_VERSION}}</td></tr>
+            <tr><td>Build</td><td>{{SYSTEM_OS_BUILD}}</td></tr>
+            <tr><td>Architecture</td><td>{{SYSTEM_OS_ARCHITECTURE}}</td></tr>
+            <tr><td>Dernier démarrage</td><td>{{SYSTEM_LAST_BOOT_TIME}}</td></tr>
+            <tr><td>Date d'installation</td><td>{{SYSTEM_INSTALL_DATE}}</td></tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="systeminfo.txt">Informations système complètes</a></li>
+        </ul>
+    </div>
+
+    <h2 id="group-policy">Stratégies de groupe</h2>
+    <div class="section">
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="gpo-report.html">Rapport GPO complet</a></li>
+            <li><a href="secpol.cfg">Configuration de la politique de sécurité</a></li>
+        </ul>
+    </div>
+
+    <h2 id="users-groups">Utilisateurs et groupes</h2>
+    <div class="section">
+        <h3>Résumé des utilisateurs</h3>
+        <table>
+            <tr><th>Type</th><th>Nombre</th></tr>
+            <tr><td>Utilisateurs activés</td><td>{{USERS_ENABLED_COUNT}}</td></tr>
+            <tr><td>Utilisateurs désactivés</td><td>{{USERS_DISABLED_COUNT}}</td></tr>
+            <tr><td>Total des groupes locaux</td><td>{{USERS_LOCAL_GROUPS_COUNT}}</td></tr>
+        </table>
+        
+        <h3>Membres du groupe Administrateurs</h3>
+        <pre>{{USERS_ADMIN_GROUP_MEMBERS}}</pre>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="user-rights.txt">Droits utilisateur spéciaux</a></li>
+        </ul>
+    </div>
+
+    <h2 id="authentication">Authentification</h2>
+    <div class="section">
+        <h3>Solutions d'authentification</h3>
+        <table>
+            <tr><th>Mécanisme</th><th>État</th></tr>
+            <tr>
+                <td>LAPS (Local Administrator Password Solution)</td>
+                <td class="{{AUTH_LAPS_CLASS}}">{{AUTH_LAPS_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Windows Hello for Business (GPO)</td>
+                <td class="{{AUTH_HELLO_CLASS}}">{{AUTH_HELLO_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>UAC (User Account Control)</td>
+                <td class="{{AUTH_UAC_CLASS}}">{{AUTH_UAC_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>JEA (Just Enough Administration)</td>
+                <td class="{{AUTH_JEA_CLASS}}">{{AUTH_JEA_STATUS}}</td>
+            </tr>
+        </table>
+        
+        <h3>Protection des identifiants</h3>
+        <table>
+            <tr><th>Protection</th><th>État</th></tr>
+            <tr>
+                <td>Protection LSASS (RunAsPPL)</td>
+                <td class="{{AUTH_LSASS_CLASS}}">{{AUTH_LSASS_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>WDigest (stockage en clair des mots de passe)</td>
+                <td class="{{AUTH_WDIGEST_CLASS}}">{{AUTH_WDIGEST_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Credential Guard</td>
+                <td class="{{AUTH_CREDGUARD_CLASS}}">{{AUTH_CREDGUARD_STATUS}}</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2 id="services-processes">Services et processus</h2>
+    <div class="section">
+        <h3>Services critiques</h3>
+        <table>
+            <tr><th>Service</th><th>État</th></tr>
+            <tr>
+                <td>RDP (Remote Desktop Protocol)</td>
+                <td class="{{SERVICES_RDP_CLASS}}">{{SERVICES_RDP_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>WinRM (Windows Remote Management)</td>
+                <td class="{{SERVICES_WINRM_CLASS}}">{{SERVICES_WINRM_STATUS}}</td>
+            </tr>
+        </table>
+        
+        <h3>Statistiques des services</h3>
+        <p>Nombre de services en cours d'exécution: {{SERVICES_RUNNING_COUNT}}</p>
+        <p>Nombre de services automatiques arrêtés: {{SERVICES_STOPPED_AUTO_COUNT}}</p>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="winrm-config.txt">Configuration WinRM</a></li>
+        </ul>
+    </div>
+
+    <h2 id="network">Réseau</h2>
+    <div class="section">
+        <h3>Configuration de base</h3>
+        <pre>{{NETWORK_IP_CONFIG}}</pre>
+        
+        <h3>Pare-feu Windows</h3>
+        <pre>{{NETWORK_FIREWALL_PROFILES}}</pre>
+        
+        <h3>Configurations SMB</h3>
+        <table>
+            <tr><th>Élément</th><th>État</th></tr>
+            <tr>
+                <td>SMBv1 (version vulnérable)</td>
+                <td class="{{NETWORK_SMBV1_CLASS}}">{{NETWORK_SMBV1_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Nombre de partages SMB</td>
+                <td>{{NETWORK_SMB_SHARES_COUNT}}</td>
+            </tr>
+        </table>
+        
+        <h3>Ports en écoute</h3>
+        <p>Nombre de ports en écoute: {{NETWORK_LISTENING_PORTS_COUNT}}</p>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="ipconfig.txt">Configuration IP complète</a></li>
+            <li><a href="firewall-rules.txt">Règles de pare-feu détaillées</a></li>
+            <li><a href="netstat.txt">Connexions réseau actives</a></li>
+        </ul>
+    </div>
+
+    <h2 id="software-security">Logiciels et sécurité</h2>
+    <div class="section">
+        <h3>Applications installées</h3>
+        <p>Nombre total d'applications installées: {{SOFTWARE_TOTAL_APPS_COUNT}}</p>
+        
+        <h3>Windows Defender</h3>
+        <table>
+            <tr><th>Paramètre</th><th>Valeur</th></tr>
+            <tr>
+                <td>Statut</td>
+                <td class="{{SOFTWARE_DEFENDER_STATUS_CLASS}}">{{SOFTWARE_DEFENDER_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Protection en temps réel</td>
+                <td class="{{SOFTWARE_DEFENDER_REALTIME_CLASS}}">{{SOFTWARE_DEFENDER_REALTIME_STATUS}}</td>
+            </tr>
+            <tr><td>Version du moteur</td><td>{{SOFTWARE_DEFENDER_ENGINE_VERSION}}</td></tr>
+            <tr><td>Version des signatures</td><td>{{SOFTWARE_DEFENDER_SIGNATURE_VERSION}}</td></tr>
+            <tr>
+                <td>Âge des signatures (jours)</td>
+                <td class="{{SOFTWARE_DEFENDER_SIGNATURE_AGE_CLASS}}">{{SOFTWARE_DEFENDER_SIGNATURE_AGE}}</td>
+            </tr>
+        </table>
+        
+        <h3>Protections avancées</h3>
+        <table>
+            <tr><th>Protection</th><th>État</th></tr>
+            <tr>
+                <td>AppLocker</td>
+                <td class="{{SOFTWARE_APPLOCKER_CLASS}}">{{SOFTWARE_APPLOCKER_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Device Guard</td>
+                <td class="{{SOFTWARE_DEVICEGUARD_CLASS}}">{{SOFTWARE_DEVICEGUARD_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Exploit Guard - Protection des dossiers contrôlés</td>
+                <td class="{{SOFTWARE_EXPLOITGUARD_FOLDER_CLASS}}">{{SOFTWARE_EXPLOITGUARD_FOLDER_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Exploit Guard - Protection réseau</td>
+                <td class="{{SOFTWARE_EXPLOITGUARD_NETWORK_CLASS}}">{{SOFTWARE_EXPLOITGUARD_NETWORK_STATUS}}</td>
+            </tr>
+        </table>
+        
+        <h3>PowerShell</h3>
+        <table>
+            <tr><th>Paramètre</th><th>Valeur</th></tr>
+            <tr>
+                <td>Mode de langage</td>
+                <td class="{{SOFTWARE_PS_LANGUAGE_MODE_CLASS}}">{{SOFTWARE_PS_LANGUAGE_MODE}}</td>
+            </tr>
+            <tr>
+                <td>Stratégie d'exécution</td>
+                <td class="{{SOFTWARE_PS_EXECUTION_POLICY_CLASS}}">{{SOFTWARE_PS_EXECUTION_POLICY}}</td>
+            </tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="applocker-policy.xml">Politique AppLocker</a></li>
+            <li><a href="ps-executionpolicy.txt">Configuration détaillée des stratégies d'exécution PowerShell</a></li>
+        </ul>
+    </div>
+
+    <h2 id="storage">Stockage</h2>
+    <div class="section">
+        <h3>Disques et volumes</h3>
+        <pre>{{STORAGE_VOLUMES}}</pre>
+        
+        <h3>BitLocker</h3>
+        <table>
+            <tr><th>Volume</th><th>État</th><th>Méthode de chiffrement</th><th>État de protection</th></tr>
+            {{STORAGE_BITLOCKER_VOLUMES}}
+        </table>
+        
+        <h3>Protection des disques amovibles</h3>
+        <table>
+            <tr><th>Protection</th><th>État</th></tr>
+            <tr>
+                <td>AutoRun désactivé pour tous les lecteurs</td>
+                <td class="{{STORAGE_AUTORUN_CLASS}}">{{STORAGE_AUTORUN_STATUS}}</td>
+            </tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="windows-folder-acl.txt">ACL du dossier Windows</a></li>
+            <li><a href="bitlocker-status.txt">État détaillé de BitLocker</a></li>
+            <li><a href="ntfs-info.txt">Configuration NTFS</a></li>
+        </ul>
+    </div>
+
+    <h2 id="logging-audit">Journalisation et audit</h2>
+    <div class="section">
+        <h3>Configuration des journaux d'événements</h3>
+        <pre>{{LOGGING_EVENT_LOGS}}</pre>
+        
+        <h3>Solutions de journalisation avancées</h3>
+        <table>
+            <tr><th>Solution</th><th>État</th></tr>
+            <tr>
+                <td>Redirection des événements (Event Forwarding)</td>
+                <td class="{{LOGGING_EVENT_FORWARDING_CLASS}}">{{LOGGING_EVENT_FORWARDING_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>Sysmon</td>
+                <td class="{{LOGGING_SYSMON_CLASS}}">{{LOGGING_SYSMON_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>PowerShell Script Block Logging</td>
+                <td class="{{LOGGING_PS_SCRIPT_BLOCK_CLASS}}">{{LOGGING_PS_SCRIPT_BLOCK_STATUS}}</td>
+            </tr>
+            <tr>
+                <td>PowerShell Transcription</td>
+                <td class="{{LOGGING_PS_TRANSCRIPTION_CLASS}}">{{LOGGING_PS_TRANSCRIPTION_STATUS}}</td>
+            </tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="audit-policy.txt">Politique d'audit complète</a></li>
+        </ul>
+    </div>
+
+    <footer>
+        <p>Rapport généré le {{REPORT_DATE}} sur {{COMPUTER_NAME}}</p>
+        <p>Script d'audit de sécurité Windows - Version 1.0</p>
+    </footer>
+</body>
+</html>
