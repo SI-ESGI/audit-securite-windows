@@ -1,16 +1,20 @@
 <#
-vérifier les droits d'administrateur et la politique d'exécution
+verifier les droits d'administrateur et la politique d'execution
 #>
 #Requires -RunAsAdministrator 
 
+# Correction de l'encodage pour l'affichage console
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 <#
 .SYNOPSIS
-    Script d'audit de sécurité Windows complet et modulaire.
+    Script d'audit de securite Windows complet et modulaire.
     
 .DESCRIPTION
-    Ce script effectue un audit approfondi des paramètres de sécurité sur une machine Windows,
-    vérifiant les GPO, utilisateurs, configurations de sécurité, services, et bien plus.
-    Les résultats sont exportés dans des rapports détaillés aux formats HTML, JSON et TXT.
+    Ce script effectue un audit approfondi des parametres de securite sur une machine Windows,
+    verifiant les GPO, utilisateurs, configurations de securite, services, et bien plus.
+    Les resultats sont exportes dans des rapports detailles aux formats HTML, JSON et TXT.
     
 #>
 
@@ -18,7 +22,53 @@ vérifier les droits d'administrateur et la politique d'exécution
 . "$PSScriptRoot\Export-AuditResults.ps1"
 
 #------------------------------------------------------------
-# Définition des fonctions du module principal
+# Fonctions utilitaires pour les recommandations
+#------------------------------------------------------------
+
+function Add-AuditRecommendation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Category,
+        [Parameter(Mandatory=$true)][string]$Check,
+        [Parameter(Mandatory=$true)][ValidateSet('OK','WARN','FAIL')][string]$Status,
+        [Parameter(Mandatory=$true)][ValidateSet('Low','Medium','High','Critical')][string]$Severity,
+        [Parameter(Mandatory=$true)][string]$Recommendation,
+        [Parameter(Mandatory=$false)][string]$Link,
+        [Parameter(Mandatory=$false)][string]$Rationale
+    )
+
+    if (-not $script:auditResults) { return }
+    if (-not $script:auditResults.ContainsKey($Category)) { $script:auditResults[$Category] = @{} }
+    if (-not ($script:auditResults[$Category] -is [hashtable])) { $script:auditResults[$Category] = @{} }
+    if (-not $script:auditResults[$Category].ContainsKey('Recommendations')) { $script:auditResults[$Category].Recommendations = @() }
+
+    $script:auditResults[$Category].Recommendations += [pscustomobject]@{
+        Category       = $Category
+        Check          = $Check
+        Status         = $Status
+        Severity       = $Severity
+        Recommendation = $Recommendation
+        Link           = $Link
+        Rationale      = $Rationale
+    }
+}
+
+function Initialize-RecommendationBuckets {
+    [CmdletBinding()]
+    param()
+
+    if (-not $script:auditResults) { return }
+
+    foreach ($cat in $script:auditResults.Keys) {
+        if (-not ($script:auditResults[$cat] -is [hashtable])) { $script:auditResults[$cat] = @{} }
+        if (-not $script:auditResults[$cat].ContainsKey('Recommendations')) {
+            $script:auditResults[$cat].Recommendations = @()
+        }
+    }
+}
+
+#------------------------------------------------------------
+# Definition des fonctions du module principal
 #------------------------------------------------------------
 
 function Initialize-AuditEnvironment {
@@ -26,7 +76,7 @@ function Initialize-AuditEnvironment {
     param()
     
     try {
-        # Création du dossier pour les résultats
+        # Creation du dossier pour les resultats
         $script:timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
         $script:reportPath = Join-Path -Path $env:USERPROFILE -ChildPath "Desktop\WindowsAudit-$timestamp"
         
@@ -34,7 +84,7 @@ function Initialize-AuditEnvironment {
             New-Item -ItemType Directory -Path $reportPath -Force | Out-Null
         }
         
-        # Initialisation de l'objet de résultats
+        # Initialisation de l'objet de resultats
         $script:auditResults = @{
             SystemInfo = @{}
             GroupPolicy = @{}
@@ -47,8 +97,11 @@ function Initialize-AuditEnvironment {
             LoggingAndAudit = @{}
         }
         
-        Write-Output "Audit de sécurité Windows démarré - $(Get-Date)"
-        Write-Output "Les résultats seront sauvegardés dans: $reportPath"
+        Write-Output "Audit de securite Windows demarre - $(Get-Date)"
+        Write-Output "Les resultats seront sauvegardes dans: $reportPath"
+        
+        # Initialisation des buckets de recommandations
+        Initialize-RecommendationBuckets
         
         return $true
     }
@@ -59,17 +112,17 @@ function Initialize-AuditEnvironment {
 }
 
 #------------------------------------------------------------
-# Module: Information système
+# Module: Information systeme
 #------------------------------------------------------------
 
 function Get-SystemInfoAudit {
     [CmdletBinding()]
     param()
     
-    Write-Output "Collecte des informations système..."
+    Write-Output "Collecte des informations systeme..."
     
     try {
-        # Informations de base sur le système
+        # Informations de base sur le systeme
         $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
         $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
         $bios = Get-CimInstance -ClassName Win32_BIOS
@@ -87,59 +140,97 @@ function Get-SystemInfoAudit {
         $script:auditResults.SystemInfo.LastBootTime = $osInfo.LastBootUpTime
         $script:auditResults.SystemInfo.InstallDate = $osInfo.InstallDate
         
-        # Fonctionnalités Windows installées
+        # Fonctionnalites Windows installees
         $windowsFeatures = Get-WindowsOptionalFeature -Online | Where-Object { $_.State -eq 'Enabled' } | Select-Object -Property FeatureName
         $script:auditResults.SystemInfo.EnabledWindowsFeatures = $windowsFeatures
         
-        # Obtenir des informations système complètes et les sauvegarder dans un fichier
+        # Obtenir des informations systeme completes et les sauvegarder dans un fichier
         $systemInfoPath = Join-Path -Path $script:reportPath -ChildPath "systeminfo.txt"
         systeminfo | Out-File -FilePath $systemInfoPath -Force
         $script:auditResults.SystemInfo.SystemInfoDetailFile = $systemInfoPath
         
+        # --- Recommandations (Informations systeme) ---
+        $osVersion = [Version]$script:auditResults.SystemInfo.OSVersion
+        if ($osVersion.Major -lt 10 -or ($osVersion.Major -eq 10 -and $osVersion.Build -lt 19041)) {
+            Add-AuditRecommendation -Category "SystemInfo" -Check "Version OS" -Status "WARN" -Severity "High" `
+                -Recommendation "Version Windows obsolete ou non supportee. Mettre a jour vers une version supportee pour recevoir les correctifs de securite." `
+                -Link "https://learn.microsoft.com/lifecycle/products/windows-10-home-and-pro"
+        } else {
+            Add-AuditRecommendation -Category "SystemInfo" -Check "Version OS" -Status "OK" -Severity "Low" `
+                -Recommendation "Version Windows recente. Maintenir les mises a jour regulieres." `
+                -Link "https://learn.microsoft.com/windows/deployment/update/"
+        }
+
+        $daysSinceLastBoot = (Get-Date) - $script:auditResults.SystemInfo.LastBootTime
+        if ($daysSinceLastBoot.Days -gt 30) {
+            Add-AuditRecommendation -Category "SystemInfo" -Check "Redemarrage systeme" -Status "WARN" -Severity "Medium" `
+                -Recommendation "Le systeme n'a pas redemarre depuis $($daysSinceLastBoot.Days) jours. Planifier des redemarrages reguliers pour appliquer les mises a jour." `
+                -Link "https://learn.microsoft.com/windows/deployment/update/waas-restart"
+        } else {
+            Add-AuditRecommendation -Category "SystemInfo" -Check "Redemarrage systeme" -Status "OK" -Severity "Low" `
+                -Recommendation "Redemarrage recent du systeme. Maintenir des redemarrages reguliers." `
+                -Link "https://learn.microsoft.com/windows/deployment/update/waas-restart"
+        }
+        
         return $true
     }
     catch {
-        $script:auditResults.SystemInfo.Error = "Erreur lors de la collecte des informations système: $_"
-        Write-Warning "Erreur lors de la collecte des informations système: $_"
+        $script:auditResults.SystemInfo.Error = "Erreur lors de la collecte des informations systeme: $_"
+        Write-Warning "Erreur lors de la collecte des informations systeme: $_"
         return $false
     }
 }
 
 #------------------------------------------------------------
-# Module: Stratégies de groupe (GPO)
+# Module: Strategies de groupe (GPO)
 #------------------------------------------------------------
 
 function Get-GroupPolicyAudit {
     [CmdletBinding()]
     param()
     
-    Write-Output "Audit des stratégies de groupe..."
+    Write-Output "Audit des strategies de groupe..."
     
     try {
-        # Exporter les résultats GPO en HTML
+        # Exporter les resultats GPO en HTML
         $gpoReportPath = Join-Path -Path $script:reportPath -ChildPath "gpo-report.html"
         Start-Process -FilePath "gpresult.exe" -ArgumentList "/h `"$gpoReportPath`"" -NoNewWindow -Wait
         $script:auditResults.GroupPolicy.GPOReportFile = $gpoReportPath
         
-        # Extraire la configuration locale de sécurité
+        # Extraire la configuration locale de securite
         $secpolPath = Join-Path -Path $script:reportPath -ChildPath "secpol.cfg"
         Start-Process -FilePath "secedit.exe" -ArgumentList "/export /cfg `"$secpolPath`"" -NoNewWindow -Wait
         $script:auditResults.GroupPolicy.SecurityPolicyFile = $secpolPath
         
-        # Obtenir toutes les GPO si nous sommes sur un contrôleur de domaine ou avec les outils RSAT installés
+        # Obtenir toutes les GPO si nous sommes sur un controleur de domaine ou avec les outils RSAT installes
         try {
             $allGPOs = Get-GPO -All -ErrorAction Stop
             $script:auditResults.GroupPolicy.AllGPOs = $allGPOs | Select-Object DisplayName, ID, CreationTime, ModificationTime
         }
         catch {
-            $script:auditResults.GroupPolicy.AllGPOsInfo = "Non disponible - probablement pas un contrôleur de domaine ou RSAT non installé"
+            $script:auditResults.GroupPolicy.AllGPOsInfo = "Non disponible - probablement pas un controleur de domaine ou RSAT non installe"
+        }
+        
+        # --- Recommandations (Strategies de groupe) ---
+        Add-AuditRecommendation -Category "GroupPolicy" -Check "Configuration GPO" -Status "OK" -Severity "Low" `
+            -Recommendation "Les strategies de groupe ont ete exportees pour analyse. Verifier les configurations de securite dans secpol.cfg et le rapport HTML." `
+            -Link "https://learn.microsoft.com/windows/security/threat-protection/security-policy-settings/"
+
+        if ($script:auditResults.GroupPolicy.AllGPOsInfo -like "*Non disponible*") {
+            Add-AuditRecommendation -Category "GroupPolicy" -Check "Outils de gestion GPO" -Status "WARN" -Severity "Medium" `
+                -Recommendation "Les outils RSAT ne sont pas installes ou il ne s'agit pas d'un controleur de domaine. Installer les outils pour une gestion complete." `
+                -Link "https://learn.microsoft.com/windows-server/remote/remote-server-administration-tools"
+        } else {
+            Add-AuditRecommendation -Category "GroupPolicy" -Check "Outils de gestion GPO" -Status "OK" -Severity "Low" `
+                -Recommendation "Les outils de gestion GPO sont disponibles. Surveiller les modifications et la coherence des strategies." `
+                -Link "https://learn.microsoft.com/windows-server/identity/ad-ds/manage/group-policy/"
         }
         
         return $true
     }
     catch {
-        $script:auditResults.GroupPolicy.Error = "Erreur lors de l'audit des stratégies de groupe: $_"
-        Write-Warning "Erreur lors de l'audit des stratégies de groupe: $_"
+        $script:auditResults.GroupPolicy.Error = "Erreur lors de l'audit des strategies de groupe: $_"
+        Write-Warning "Erreur lors de l'audit des strategies de groupe: $_"
         return $false
     }
 }
@@ -159,7 +250,7 @@ function Get-UsersAndGroupsAudit {
         $localUsers = Get-LocalUser | Select-Object Name, Enabled, LastLogon, PasswordRequired, PasswordLastSet, Description, SID
         $script:auditResults.UsersAndGroups.LocalUsers = $localUsers
         
-        # Compter les utilisateurs locaux par état
+        # Compter les utilisateurs locaux par etat
         $script:auditResults.UsersAndGroups.EnabledUserCount = ($localUsers | Where-Object { $_.Enabled -eq $true }).Count
         $script:auditResults.UsersAndGroups.DisabledUserCount = ($localUsers | Where-Object { $_.Enabled -eq $false }).Count
         
@@ -169,7 +260,7 @@ function Get-UsersAndGroupsAudit {
         
         # Membres du groupe Administrateurs
         try {
-            # Essayer d'abord avec le nom français
+            # Essayer d'abord avec le nom francais
             $adminGroupMembers = Get-LocalGroupMember -Group "Administrateurs" -ErrorAction Stop
         }
         catch {
@@ -184,17 +275,43 @@ function Get-UsersAndGroupsAudit {
         
         $script:auditResults.UsersAndGroups.AdministratorGroupMembers = $adminGroupMembers | Select-Object Name, SID, PrincipalSource
         
-        # Vérifier les comptes avec des droits spéciaux
+        # Verifier les comptes avec des droits speciaux
         $specialRights = @{
             "SeBackupPrivilege" = "Droit de sauvegarde"
-            "SeDebugPrivilege" = "Droit de déboguer des programmes"
+            "SeDebugPrivilege" = "Droit de deboguer des programmes"
             "SeTakeOwnershipPrivilege" = "Droit de s'approprier des fichiers"
-            "SeImpersonatePrivilege" = "Droit d'emprunter l'identité d'un client"
+            "SeImpersonatePrivilege" = "Droit d'emprunter l'identite d'un client"
         }
         
         $specialRightsPath = Join-Path -Path $script:reportPath -ChildPath "user-rights.txt"
         Start-Process -FilePath "whoami.exe" -ArgumentList "/priv" -NoNewWindow -Wait -RedirectStandardOutput $specialRightsPath
         $script:auditResults.UsersAndGroups.UserRightsFile = $specialRightsPath
+        
+        # --- Recommandations (Utilisateurs et groupes) ---
+        $adminCount = ($script:auditResults.UsersAndGroups.AdministratorGroupMembers | Measure-Object).Count
+        if ($adminCount -gt 2) {
+            Add-AuditRecommendation -Category "UsersAndGroups" -Check "Membres administrateurs" -Status "WARN" -Severity "High" `
+                -Recommendation "Trop d'utilisateurs ont des privileges administrateur ($adminCount membres). Limiter aux comptes strictement necessaires." `
+                -Link "https://learn.microsoft.com/windows/security/identity-protection/access-control/local-accounts"
+        } else {
+            Add-AuditRecommendation -Category "UsersAndGroups" -Check "Membres administrateurs" -Status "OK" -Severity "Low" `
+                -Recommendation "Nombre approprie d'administrateurs ($adminCount membres). Continuer a surveiller les modifications." `
+                -Link "https://learn.microsoft.com/windows/security/identity-protection/access-control/local-accounts"
+        }
+
+        $disabledRatio = if ($script:auditResults.UsersAndGroups.EnabledUserCount -gt 0) { 
+            $script:auditResults.UsersAndGroups.DisabledUserCount / ($script:auditResults.UsersAndGroups.EnabledUserCount + $script:auditResults.UsersAndGroups.DisabledUserCount) 
+        } else { 0 }
+        
+        if ($disabledRatio -gt 0.3) {
+            Add-AuditRecommendation -Category "UsersAndGroups" -Check "Comptes desactives" -Status "WARN" -Severity "Medium" `
+                -Recommendation "Trop de comptes desactives ($($script:auditResults.UsersAndGroups.DisabledUserCount)). Nettoyer les comptes inutiles." `
+                -Link "https://learn.microsoft.com/windows/security/identity-protection/access-control/local-accounts"
+        } else {
+            Add-AuditRecommendation -Category "UsersAndGroups" -Check "Comptes desactives" -Status "OK" -Severity "Low" `
+                -Recommendation "Ratio acceptable de comptes desactives. Continuer le nettoyage regulier." `
+                -Link "https://learn.microsoft.com/windows/security/identity-protection/access-control/local-accounts"
+        }
         
         return $true
     }
@@ -213,18 +330,18 @@ function Get-AuthenticationAudit {
     [CmdletBinding()]
     param()
     
-    Write-Output "Audit des mécanismes d'authentification..."
+    Write-Output "Audit des mecanismes d'authentification..."
     
     try {
-        # Vérification LAPS
+        # Verification LAPS
         $lapsInstalled = Test-Path -Path "C:\Program Files\LAPS\CSE"
         $lapsRegistry = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | 
                        Where-Object { $_.DisplayName -like "*Local Administrator Password Solution*" }
         
         $script:auditResults.Authentication.LAPS = @{
             Installed = ($lapsInstalled -or ($lapsRegistry -ne $null))
-            Installation_Path = if ($lapsInstalled) { "C:\Program Files\LAPS\CSE" } else { "Non trouvé" }
-            Version = if ($lapsRegistry) { $lapsRegistry.DisplayVersion } else { "Non installé" }
+            Installation_Path = if ($lapsInstalled) { "C:\Program Files\LAPS\CSE" } else { "Non trouve" }
+            Version = if ($lapsRegistry) { $lapsRegistry.DisplayVersion } else { "Non installe" }
         }
         
         # Windows Hello for Business
@@ -259,7 +376,7 @@ function Get-AuthenticationAudit {
         
         $script:auditResults.Authentication.LSASSProtection = @{
             Enabled = if ($lsassProtection -and ($lsassProtection.RunAsPPL -eq 1 -or $lsassProtection.RunAsPPL -eq 2)) { $true } else { $false }
-            Value = if ($lsassProtection) { $lsassProtection.RunAsPPL } else { "Non configuré" }
+            Value = if ($lsassProtection) { $lsassProtection.RunAsPPL } else { "Non configure" }
         }
         
         # WDigest
@@ -267,7 +384,7 @@ function Get-AuthenticationAudit {
         
         $script:auditResults.Authentication.WDigest = @{
             Disabled = if ($wdigest -and $wdigest.UseLogonCredential -eq 0) { $true } else { $false }
-            Value = if ($wdigest) { $wdigest.UseLogonCredential } else { "Non configuré" }
+            Value = if ($wdigest) { $wdigest.UseLogonCredential } else { "Non configure" }
         }
         
         # Credential Guard
@@ -276,6 +393,61 @@ function Get-AuthenticationAudit {
         $script:auditResults.Authentication.CredentialGuard = @{
             Available = if ($credentialGuard -and $credentialGuard.SecurityServicesConfigured -contains 1) { $true } else { $false }
             Running = if ($credentialGuard -and $credentialGuard.SecurityServicesRunning -contains 1) { $true } else { $false }
+        }
+        
+        # --- Recommandations (Authentification) ---
+        if ($script:auditResults.Authentication.LAPS -and -not $script:auditResults.Authentication.LAPS.Installed) {
+            Add-AuditRecommendation -Category "Authentication" -Check "LAPS" -Status "FAIL" -Severity "High" `
+                -Recommendation "Deployer Windows LAPS pour gerer et faire tourner automatiquement les mots de passe des comptes administrateur locaux." `
+                -Link "https://learn.microsoft.com/windows-server/identity/laps/laps-overview" `
+                -Rationale "Reduit fortement le risque de reutilisation/vol de mots de passe admin local (mouvements lateraux)."
+        } elseif ($script:auditResults.Authentication.LAPS -and $script:auditResults.Authentication.LAPS.Installed) {
+            Add-AuditRecommendation -Category "Authentication" -Check "LAPS" -Status "OK" -Severity "Low" `
+                -Recommendation "Windows LAPS est present. Verifier la rotation, l'archivage (AD/Entra ID) et le controle d'acces aux mots de passe." `
+                -Link "https://learn.microsoft.com/windows-server/identity/laps/laps-scenarios-windows-server-active-directory"
+        }
+
+        if ($script:auditResults.Authentication.UAC -and -not $script:auditResults.Authentication.UAC.Enabled) {
+            Add-AuditRecommendation -Category "Authentication" -Check "UAC" -Status "FAIL" -Severity "High" `
+                -Recommendation "Activer l'UAC (Admin Approval Mode) et conserver le Secure Desktop pour les invites." `
+                -Link "https://learn.microsoft.com/windows/security/application-security/application-control/user-account-control/" `
+                -Rationale "Limite l'execution automatique en contexte administrateur."
+        } elseif ($script:auditResults.Authentication.UAC -and $script:auditResults.Authentication.UAC.Enabled) {
+            Add-AuditRecommendation -Category "Authentication" -Check "UAC" -Status "OK" -Severity "Low" `
+                -Recommendation "UAC est active. Verifier les parametres de securite (Secure Desktop, niveau d'invite)." `
+                -Link "https://learn.microsoft.com/windows/security/application-security/application-control/user-account-control/"
+        }
+
+        if ($script:auditResults.Authentication.LSASSProtection -and -not $script:auditResults.Authentication.LSASSProtection.Enabled) {
+            Add-AuditRecommendation -Category "Authentication" -Check "LSASS protection (RunAsPPL)" -Status "WARN" -Severity "High" `
+                -Recommendation "Activer la protection renforcee de LSASS (RunAsPPL) pour reduire l'injection et le vol d'identifiants en memoire." `
+                -Link "https://learn.microsoft.com/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
+        } elseif ($script:auditResults.Authentication.LSASSProtection -and $script:auditResults.Authentication.LSASSProtection.Enabled) {
+            Add-AuditRecommendation -Category "Authentication" -Check "LSASS protection (RunAsPPL)" -Status "OK" -Severity "Low" `
+                -Recommendation "Protection LSASS activee. Surveiller les tentatives de contournement dans les journaux." `
+                -Link "https://learn.microsoft.com/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
+        }
+
+        if ($script:auditResults.Authentication.WDigest -and -not $script:auditResults.Authentication.WDigest.Disabled) {
+            Add-AuditRecommendation -Category "Authentication" -Check "WDigest" -Status "FAIL" -Severity "Critical" `
+                -Recommendation "Desactiver le stockage de mots de passe en clair via WDigest (UseLogonCredential=0) et s'assurer que les correctifs adequats sont appliques." `
+                -Link "https://support.microsoft.com/topic/microsoft-security-advisory-update-to-improve-credentials-protection-and-management-may-13-2014-93434251-04ac-b7f3-52aa-9f951c14b649"
+        } elseif ($script:auditResults.Authentication.WDigest -and $script:auditResults.Authentication.WDigest.Disabled) {
+            Add-AuditRecommendation -Category "Authentication" -Check "WDigest" -Status "OK" -Severity "Low" `
+                -Recommendation "WDigest est desactive. Maintenir cette configuration pour eviter le stockage en clair des mots de passe." `
+                -Link "https://support.microsoft.com/topic/microsoft-security-advisory-update-to-improve-credentials-protection-and-management-may-13-2014-93434251-04ac-b7f3-52aa-9f951c14b649"
+        }
+
+        if ($script:auditResults.Authentication.CredentialGuard) {
+            if (-not $script:auditResults.Authentication.CredentialGuard.Running) {
+                Add-AuditRecommendation -Category "Authentication" -Check "Credential Guard" -Status "WARN" -Severity "High" `
+                    -Recommendation "Activer Microsoft Defender Credential Guard (VBS) lorsque compatible, notamment sur les VMs supportees." `
+                    -Link "https://learn.microsoft.com/windows/security/identity-protection/credential-guard/configure"
+            } else {
+                Add-AuditRecommendation -Category "Authentication" -Check "Credential Guard" -Status "OK" -Severity "Low" `
+                    -Recommendation "Credential Guard est actif. Verifier les prerequis VBS/Secure Boot selon votre hyperviseur." `
+                    -Link "https://learn.microsoft.com/windows/security/identity-protection/credential-guard/"
+            }
         }
         
         return $true
@@ -298,12 +470,12 @@ function Get-ServicesAndProcessesAudit {
     Write-Output "Audit des services et processus..."
     
     try {
-        # Liste des services en cours d'exécution
+        # Liste des services en cours d'execution
         $runningServices = Get-Service | Where-Object { $_.Status -eq "Running" } | 
                            Select-Object Name, DisplayName, StartType, Status
         $script:auditResults.ServicesAndProcesses.RunningServices = $runningServices
         
-        # Services automatiques mais non démarrés
+        # Services automatiques mais non demarres
         $stoppedAutoServices = Get-Service | Where-Object { $_.Status -eq "Stopped" -and $_.StartType -eq "Automatic" } | 
                               Select-Object Name, DisplayName, StartType, Status
         $script:auditResults.ServicesAndProcesses.StoppedAutoServices = $stoppedAutoServices
@@ -321,11 +493,11 @@ function Get-ServicesAndProcessesAudit {
             $script:auditResults.ServicesAndProcesses.RDP = @{
                 Enabled = if ($rdpEnabled -and $rdpEnabled.fDenyTSConnections -eq 0) { $true } else { $false }
                 NLARequired = if ($rdpConfig -and $rdpConfig.UserAuthentication -eq 1) { $true } else { $false }
-                SecurityLayer = if ($rdpConfig) { $rdpConfig.SecurityLayer } else { "Non configuré" }
+                SecurityLayer = if ($rdpConfig) { $rdpConfig.SecurityLayer } else { "Non configure" }
             }
         }
         catch {
-            $script:auditResults.ServicesAndProcesses.RDP = "Impossible de déterminer la configuration RDP"
+            $script:auditResults.ServicesAndProcesses.RDP = "Impossible de determiner la configuration RDP"
         }
         
         # Configuration WinRM
@@ -342,7 +514,7 @@ function Get-ServicesAndProcessesAudit {
             $script:auditResults.ServicesAndProcesses.WinRMConfigFile = $winrmConfigPath
         }
         
-        # Liste des démarrages automatiques
+        # Liste des demarrages automatiques
         $startupApps = Get-CimInstance -ClassName Win32_StartupCommand | 
                       Select-Object Name, Command, Location, User
         $script:auditResults.ServicesAndProcesses.StartupItems = $startupApps
@@ -352,6 +524,43 @@ function Get-ServicesAndProcessesAudit {
                         Where-Object { $_.PathName -notlike "*system32*" -and $_.PathName -notlike "*Program Files*\Windows *" } | 
                         Select-Object Name, DisplayName, StartMode, State, PathName
         $script:auditResults.ServicesAndProcesses.ThirdPartyServices = $nonMsServices
+        
+        # --- Recommandations (Services et Processus) ---
+        if ($script:auditResults.ServicesAndProcesses.RDP -and $script:auditResults.ServicesAndProcesses.RDP.Enabled) {
+            if ($script:auditResults.ServicesAndProcesses.RDP.NLARequired) {
+                Add-AuditRecommendation -Category "ServicesAndProcesses" -Check "Configuration RDP" -Status "OK" -Severity "Medium" `
+                    -Recommendation "RDP est active avec NLA (Network Level Authentication). Verifier les utilisateurs autorises et considerer l'utilisation d'un VPN." `
+                    -Link "https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/best-practices-configuring"
+            } else {
+                Add-AuditRecommendation -Category "ServicesAndProcesses" -Check "Configuration RDP" -Status "WARN" -Severity "High" `
+                    -Recommendation "RDP est active mais NLA n'est pas requis. Activer NLA et limiter l'acces aux utilisateurs autorises." `
+                    -Link "https://learn.microsoft.com/windows-server/remote/remote-desktop-services/clients/remote-desktop-allow-access"
+            }
+        } elseif ($script:auditResults.ServicesAndProcesses.RDP -and -not $script:auditResults.ServicesAndProcesses.RDP.Enabled) {
+            Add-AuditRecommendation -Category "ServicesAndProcesses" -Check "Configuration RDP" -Status "OK" -Severity "Low" `
+                -Recommendation "RDP est desactive. Si l'acces distant est necessaire, utiliser des solutions plus securisees comme SSH ou VPN." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/best-practices-configuring"
+        }
+
+        if ($script:auditResults.ServicesAndProcesses.WinRM -and $script:auditResults.ServicesAndProcesses.WinRM.Enabled) {
+            Add-AuditRecommendation -Category "ServicesAndProcesses" -Check "WinRM" -Status "WARN" -Severity "Medium" `
+                -Recommendation "WinRM est active. Verifier la configuration HTTPS, l'authentification et limiter les connexions aux hotes autorises." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_remote_requirements"
+        } else {
+            Add-AuditRecommendation -Category "ServicesAndProcesses" -Check "WinRM" -Status "OK" -Severity "Low" `
+                -Recommendation "WinRM est desactive. Si PowerShell Remoting est necessaire, configurer HTTPS et authentification forte." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_remote_requirements"
+        }
+
+        if ($script:auditResults.ServicesAndProcesses.StoppedAutoServices -and $script:auditResults.ServicesAndProcesses.StoppedAutoServices.Count -gt 5) {
+            Add-AuditRecommendation -Category "ServicesAndProcesses" -Check "Services automatiques arretes" -Status "WARN" -Severity "Medium" `
+                -Recommendation "Plusieurs services configures en demarrage automatique sont arretes. Verifier si cela est intentionnel." `
+                -Link "https://learn.microsoft.com/troubleshoot/windows-server/performance/optimize-windows-server-performance"
+        } else {
+            Add-AuditRecommendation -Category "ServicesAndProcesses" -Check "Services automatiques arretes" -Status "OK" -Severity "Low" `
+                -Recommendation "Nombre acceptable de services automatiques arretes. Continuer a surveiller regulierement." `
+                -Link "https://learn.microsoft.com/troubleshoot/windows-server/performance/optimize-windows-server-performance"
+        }
         
         return $true
     }
@@ -363,21 +572,21 @@ function Get-ServicesAndProcessesAudit {
 }
 
 #------------------------------------------------------------
-# Module: Réseau
+# Module: Reseau
 #------------------------------------------------------------
 
 function Get-NetworkAudit {
     [CmdletBinding()]
     param()
     
-    Write-Output "Audit de la configuration réseau..."
+    Write-Output "Audit de la configuration reseau..."
     
     try {
         # Configuration IP
         $netIPConfig = Get-NetIPConfiguration | Select-Object InterfaceAlias, InterfaceDescription, IPv4Address, IPv6Address, DNSServer
         $script:auditResults.Network.IPConfiguration = $netIPConfig
         
-        # Détails complets de la configuration IP
+        # Details complets de la configuration IP
         $ipConfigPath = Join-Path -Path $script:reportPath -ChildPath "ipconfig.txt"
         ipconfig /all | Out-File -FilePath $ipConfigPath -Force
         $script:auditResults.Network.IPConfigDetailFile = $ipConfigPath
@@ -386,13 +595,13 @@ function Get-NetworkAudit {
         $firewallProfiles = Get-NetFirewallProfile | Select-Object Name, Enabled, DefaultInboundAction, DefaultOutboundAction, LogAllowed, LogBlocked, LogIgnored
         $script:auditResults.Network.FirewallProfiles = $firewallProfiles
         
-        # Règles de pare-feu entrantes autorisant le trafic
+        # Regles de pare-feu entrantes autorisant le trafic
         $inboundRules = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow | 
                        Select-Object DisplayName, Enabled, Direction, Action, Profile | 
                        Sort-Object -Property DisplayName
         $script:auditResults.Network.InboundAllowRules = $inboundRules
         
-        # Sauvegarde des règles de pare-feu complètes
+        # Sauvegarde des regles de pare-feu completes
         $firewallRulesPath = Join-Path -Path $script:reportPath -ChildPath "firewall-rules.txt"
         netsh advfirewall firewall show rule name=all | Out-File -FilePath $firewallRulesPath -Force
         $script:auditResults.Network.FirewallRulesFile = $firewallRulesPath
@@ -402,7 +611,7 @@ function Get-NetworkAudit {
         netstat -ano | Out-File -FilePath $netStatPath -Force
         $script:auditResults.Network.ActiveConnectionsFile = $netStatPath
         
-        # État des ports en écoute
+        # État des ports en ecoute
         $listeningPorts = Get-NetTCPConnection -State Listen | 
                          Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess
         $script:auditResults.Network.ListeningPorts = $listeningPorts
@@ -434,14 +643,14 @@ function Get-NetworkAudit {
             }
         }
         catch {
-            $script:auditResults.Network.SMBv1 = "Impossible de déterminer l'état de SMBv1"
+            $script:auditResults.Network.SMBv1 = "Impossible de determiner l'etat de SMBv1"
         }
         
         # Partages SMB
         $smbShares = Get-SmbShare -ErrorAction SilentlyContinue | Select-Object Name, Path, Description
         $script:auditResults.Network.SMBShares = $smbShares
         
-        # Accès aux partages SMB
+        # Acces aux partages SMB
         $smbShareAccess = @()
         foreach ($share in $smbShares) {
             try {
@@ -455,27 +664,60 @@ function Get-NetworkAudit {
         }
         $script:auditResults.Network.SMBShareAccessRights = $smbShareAccess
         
+        # --- Recommandations (Reseau) ---
+        if ($script:auditResults.Network.SMBv1 -and $script:auditResults.Network.SMBv1.Enabled) {
+            Add-AuditRecommendation -Category "Network" -Check "SMBv1" -Status "FAIL" -Severity "Critical" `
+                -Recommendation "SMBv1 est active. Desactiver immediatement SMBv1 car il presente des vulnerabilites critiques (WannaCry, EternalBlue)." `
+                -Link "https://learn.microsoft.com/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3"
+        } else {
+            Add-AuditRecommendation -Category "Network" -Check "SMBv1" -Status "OK" -Severity "Low" `
+                -Recommendation "SMBv1 est desactive. Maintenir cette configuration et utiliser SMBv3 uniquement." `
+                -Link "https://learn.microsoft.com/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3"
+        }
+
+        $publicProfileEnabled = $script:auditResults.Network.FirewallProfiles | Where-Object { $_.Name -eq "Public" -and $_.Enabled -eq $true }
+        if ($publicProfileEnabled) {
+            Add-AuditRecommendation -Category "Network" -Check "Pare-feu Public" -Status "OK" -Severity "Medium" `
+                -Recommendation "Le pare-feu est active pour le profil Public. Verifier les regles autorisees et minimiser les exceptions." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/best-practices-configuring"
+        } else {
+            Add-AuditRecommendation -Category "Network" -Check "Pare-feu Public" -Status "FAIL" -Severity "High" `
+                -Recommendation "Le pare-feu n'est pas active pour le profil Public. Activer immediatement le pare-feu Windows." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/best-practices-configuring"
+        }
+
+        $suspiciousPorts = $script:auditResults.Network.ListeningPorts | Where-Object { $_.LocalPort -in @(23, 135, 139, 445, 1433, 3389) }
+        if ($suspiciousPorts -and $suspiciousPorts.Count -gt 2) {
+            Add-AuditRecommendation -Category "Network" -Check "Ports sensibles" -Status "WARN" -Severity "High" `
+                -Recommendation "Plusieurs ports sensibles sont ouverts (Telnet, RPC, NetBIOS, SMB, SQL, RDP). Fermer les ports inutiles." `
+                -Link "https://learn.microsoft.com/windows-server/networking/technologies/netsh/netsh-contexts"
+        } else {
+            Add-AuditRecommendation -Category "Network" -Check "Ports sensibles" -Status "OK" -Severity "Low" `
+                -Recommendation "Nombre acceptable de ports sensibles ouverts. Continuer a surveiller regulierement." `
+                -Link "https://learn.microsoft.com/windows-server/networking/technologies/netsh/netsh-contexts"
+        }
+        
         return $true
     }
     catch {
-        $script:auditResults.Network.Error = "Erreur lors de l'audit réseau: $_"
-        Write-Warning "Erreur lors de l'audit réseau: $_"
+        $script:auditResults.Network.Error = "Erreur lors de l'audit reseau: $_"
+        Write-Warning "Erreur lors de l'audit reseau: $_"
         return $false
     }
 }
 
 #------------------------------------------------------------
-# Module: Logiciels et sécurité
+# Module: Logiciels et securite
 #------------------------------------------------------------
 
 function Get-SoftwareAndSecurityAudit {
     [CmdletBinding()]
     param()
     
-    Write-Output "Audit des logiciels et de la sécurité..."
+    Write-Output "Audit des logiciels et de la securite..."
     
     try {
-        # Applications installées (limitées aux 50 plus récentes pour éviter un rapport trop volumineux)
+        # Applications installees (limitees aux 50 plus recentes pour eviter un rapport trop volumineux)
         $installedApps = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | 
                         Where-Object { $_.DisplayName } |
                         Select-Object DisplayName, DisplayVersion, Publisher, InstallDate |
@@ -483,27 +725,27 @@ function Get-SoftwareAndSecurityAudit {
                         Select-Object -First 50
         $script:auditResults.SoftwareAndSecurity.RecentInstalledApps = $installedApps
         
-        # Nombre total d'applications installées
+        # Nombre total d'applications installees
         $totalAppsCount = (Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | 
                           Where-Object { $_.DisplayName }).Count
         $script:auditResults.SoftwareAndSecurity.TotalInstalledAppsCount = $totalAppsCount
         
-        # Mises à jour Windows
+        # Mises a jour Windows
         try {
             $windowsUpdateServer = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -ErrorAction SilentlyContinue
             $auSettings = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction SilentlyContinue
             
             $script:auditResults.SoftwareAndSecurity.WindowsUpdate = @{
-                Server = if ($windowsUpdateServer) { $windowsUpdateServer.WUServer } else { "Non configuré" }
-                AutoUpdateSettings = if ($auSettings) { $auSettings | Select-Object AUOptions, ScheduledInstallDay, ScheduledInstallTime } else { "Non configuré" }
+                Server = if ($windowsUpdateServer) { $windowsUpdateServer.WUServer } else { "Non configure" }
+                AutoUpdateSettings = if ($auSettings) { $auSettings | Select-Object AUOptions, ScheduledInstallDay, ScheduledInstallTime } else { "Non configure" }
             }
             
-            # Liste des mises à jour installées (limitées aux 50 plus récentes)
+            # Liste des mises a jour installees (limitees aux 50 plus recentes)
             $hotfixes = Get-HotFix | Sort-Object -Property InstalledOn -Descending | Select-Object -First 50 HotFixID, Description, InstalledOn
             $script:auditResults.SoftwareAndSecurity.RecentHotfixes = $hotfixes
         }
         catch {
-            $script:auditResults.SoftwareAndSecurity.WindowsUpdateError = "Erreur lors de la vérification des mises à jour Windows: $_"
+            $script:auditResults.SoftwareAndSecurity.WindowsUpdateError = "Erreur lors de la verification des mises a jour Windows: $_"
         }
         
         # AppLocker
@@ -526,7 +768,7 @@ function Get-SoftwareAndSecurityAudit {
             }
         }
         catch {
-            $script:auditResults.SoftwareAndSecurity.AppLocker = "Impossible de déterminer la configuration AppLocker"
+            $script:auditResults.SoftwareAndSecurity.AppLocker = "Impossible de determiner la configuration AppLocker"
         }
         
         # Windows Defender
@@ -546,7 +788,7 @@ function Get-SoftwareAndSecurityAudit {
             }
         }
         catch {
-            $script:auditResults.SoftwareAndSecurity.WindowsDefender = "Impossible de déterminer l'état de Windows Defender"
+            $script:auditResults.SoftwareAndSecurity.WindowsDefender = "Impossible de determiner l'etat de Windows Defender"
         }
         
         # Device Guard
@@ -560,10 +802,10 @@ function Get-SoftwareAndSecurityAudit {
             }
         }
         catch {
-            $script:auditResults.SoftwareAndSecurity.DeviceGuard = "Impossible de déterminer l'état de Device Guard"
+            $script:auditResults.SoftwareAndSecurity.DeviceGuard = "Impossible de determiner l'etat de Device Guard"
         }
         
-        # Exploit Guard - Protection des dossiers contrôlés
+        # Exploit Guard - Protection des dossiers controles
         try {
             $mpPreference = Get-MpPreference -ErrorAction SilentlyContinue
             
@@ -574,23 +816,64 @@ function Get-SoftwareAndSecurityAudit {
             }
         }
         catch {
-            $script:auditResults.SoftwareAndSecurity.ExploitGuard = "Impossible de déterminer la configuration d'Exploit Guard"
+            $script:auditResults.SoftwareAndSecurity.ExploitGuard = "Impossible de determiner la configuration d'Exploit Guard"
         }
         
         # Mode de langage PowerShell
         $script:auditResults.SoftwareAndSecurity.PowerShellLanguageMode = $ExecutionContext.SessionState.LanguageMode
         
-        # Stratégie d'exécution PowerShell
+        # Strategie d'execution PowerShell
         $policyPath = Join-Path -Path $script:reportPath -ChildPath "ps-executionpolicy.txt"
         Get-ExecutionPolicy -List | Out-File -FilePath $policyPath -Force
         $script:auditResults.SoftwareAndSecurity.PowerShellExecutionPolicy = Get-ExecutionPolicy
         $script:auditResults.SoftwareAndSecurity.PowerShellExecutionPolicyFile = $policyPath
         
+        # --- Recommandations (Logiciels et Securite) ---
+        if ($script:auditResults.SoftwareAndSecurity.WindowsDefender -and -not $script:auditResults.SoftwareAndSecurity.WindowsDefender.Enabled) {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "Windows Defender" -Status "FAIL" -Severity "Critical" `
+                -Recommendation "Windows Defender n'est pas active. Activer la protection antivirus ou installer une solution tierce." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/system-security/windows-defender-antivirus/"
+        } elseif ($script:auditResults.SoftwareAndSecurity.WindowsDefender -and $script:auditResults.SoftwareAndSecurity.WindowsDefender.Enabled) {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "Windows Defender" -Status "OK" -Severity "Low" `
+                -Recommendation "Windows Defender est active. Verifier la frequence de mise a jour des signatures et la protection temps reel." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/system-security/windows-defender-antivirus/"
+        }
+
+        if ($script:auditResults.SoftwareAndSecurity.ExploitGuard -and -not $script:auditResults.SoftwareAndSecurity.ExploitGuard.ControlledFolderAccess) {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "Exploit Guard - Controle d'acces aux dossiers" -Status "WARN" -Severity "High" `
+                -Recommendation "L'acces controle aux dossiers n'est pas active. Activer cette protection contre les ransomwares." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/system-security/windows-defender-exploit-guard/controlled-folders"
+        } else {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "Exploit Guard - Controle d'acces aux dossiers" -Status "OK" -Severity "Low" `
+                -Recommendation "L'acces controle aux dossiers est active. Surveiller les alertes et ajuster les exceptions si necessaire." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/system-security/windows-defender-exploit-guard/controlled-folders"
+        }
+
+        if ($script:auditResults.SoftwareAndSecurity.PowerShellLanguageMode -ne "ConstrainedLanguage") {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "PowerShell Language Mode" -Status "WARN" -Severity "Medium" `
+                -Recommendation "PowerShell fonctionne en mode FullLanguage. Considerer le mode ConstrainedLanguage avec AppLocker/Device Guard." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_language_modes"
+        } else {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "PowerShell Language Mode" -Status "OK" -Severity "Low" `
+                -Recommendation "PowerShell fonctionne en mode ConstrainedLanguage. Maintenir cette configuration securisee." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_language_modes"
+        }
+
+        if ($script:auditResults.SoftwareAndSecurity.PowerShellExecutionPolicy -eq "Unrestricted" -or $script:auditResults.SoftwareAndSecurity.PowerShellExecutionPolicy -eq "Bypass") {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "PowerShell Execution Policy" -Status "FAIL" -Severity "High" `
+                -Recommendation "La politique d'execution PowerShell est trop permissive (Unrestricted/Bypass). Utiliser RemoteSigned ou AllSigned." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies"
+        } else {
+            Add-AuditRecommendation -Category "SoftwareAndSecurity" -Check "PowerShell Execution Policy" -Status "OK" -Severity "Low" `
+                -Recommendation "La politique d'execution PowerShell est appropriee. Maintenir cette configuration." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies"
+        }
+        
         return $true
     }
     catch {
-        $script:auditResults.SoftwareAndSecurity.Error = "Erreur lors de l'audit des logiciels et de la sécurité: $_"
-        Write-Warning "Erreur lors de l'audit des logiciels et de la sécurité: $_"
+        $script:auditResults.SoftwareAndSecurity.Error = "Erreur lors de l'audit des logiciels et de la securite: $_"
+        Write-Warning "Erreur lors de l'audit des logiciels et de la securite: $_"
         return $false
     }
 }
@@ -598,6 +881,8 @@ function Get-SoftwareAndSecurityAudit {
 #------------------------------------------------------------
 # Module: Stockage
 #------------------------------------------------------------
+
+
 
 function Get-StorageAudit {
     [CmdletBinding()]
@@ -615,7 +900,7 @@ function Get-StorageAudit {
                   Select-Object DriveLetter, FileSystemLabel, FileSystem, DriveType, HealthStatus, SizeRemaining, Size
         $script:auditResults.Storage.Volumes = $volumes
         
-        # Vérification des ACL NTFS sur les dossiers système critiques
+        # Verification des ACL NTFS sur les dossiers systeme critiques
         $criticalFolders = @(
             "C:\Windows",
             "C:\Windows\System32",
@@ -651,7 +936,7 @@ function Get-StorageAudit {
         }
         $script:auditResults.Storage.CriticalFolderACLs = $folderAcls
         
-        # Export des ACL détaillées pour C:\Windows
+        # Export des ACL detaillees pour C:\Windows
         $windowsAclPath = Join-Path -Path $script:reportPath -ChildPath "windows-folder-acl.txt"
         try {
             $acl = Get-Acl -Path "C:\Windows" -ErrorAction SilentlyContinue
@@ -668,11 +953,11 @@ function Get-StorageAudit {
             
             $script:auditResults.Storage.AutoRun = @{
                 DisabledForAll = if ($autoRunSetting -and $autoRunSetting.NoDriveTypeAutoRun -eq 255) { $true } else { $false }
-                Value = if ($autoRunSetting) { $autoRunSetting.NoDriveTypeAutoRun } else { "Non configuré" }
+                Value = if ($autoRunSetting) { $autoRunSetting.NoDriveTypeAutoRun } else { "Non configure" }
             }
         }
         catch {
-            $script:auditResults.Storage.AutoRun = "Impossible de déterminer la configuration AutoRun"
+            $script:auditResults.Storage.AutoRun = "Impossible de determiner la configuration AutoRun"
         }
         
         # BitLocker
@@ -682,7 +967,7 @@ function Get-StorageAudit {
                 Volumes = $bitlockerVolumes | Select-Object MountPoint, VolumeStatus, EncryptionMethod, ProtectionStatus
             }
             
-            # Export des détails BitLocker
+            # Export des details BitLocker
             $bitlockerPath = Join-Path -Path $script:reportPath -ChildPath "bitlocker-status.txt"
             manage-bde -status | Out-File -FilePath $bitlockerPath -Force
             $script:auditResults.Storage.BitLockerStatusFile = $bitlockerPath
@@ -716,6 +1001,45 @@ function Get-StorageAudit {
         $ntfsConfig | ForEach-Object { "=== Lecteur $($_.DriveLetter): ===`n$($_.Info)`n`n" } | Out-File -FilePath $ntfsPath -Force
         $script:auditResults.Storage.NTFSConfigFile = $ntfsPath
         
+        # --- Recommandations (Stockage) ---
+        $unencryptedVolumes = @()
+        if ($script:auditResults.Storage.BitLocker -and $script:auditResults.Storage.BitLocker.Volumes) {
+            $unencryptedVolumes = $script:auditResults.Storage.BitLocker.Volumes | Where-Object { 
+                $_.VolumeStatus -ne "FullyEncrypted" -and $_.MountPoint -like "*:" 
+            }
+        }
+        
+        if ($unencryptedVolumes.Count -gt 0) {
+            Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "FAIL" -Severity "High" `
+                -Recommendation "Des volumes ne sont pas chiffres avec BitLocker. Activer le chiffrement sur tous les volumes sensibles." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
+        } else {
+            Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "OK" -Severity "Low" `
+                -Recommendation "BitLocker est configure sur les volumes principaux. Verifier la sauvegarde des cles de recuperation." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
+        }
+
+        $folderWithEveryoneFullControl = $script:auditResults.Storage.CriticalFolderACLs | Where-Object { $_.FullControlForEveryone -eq $true }
+        if ($folderWithEveryoneFullControl) {
+            Add-AuditRecommendation -Category "Storage" -Check "ACL dossiers critiques" -Status "FAIL" -Severity "Critical" `
+                -Recommendation "Des dossiers critiques donnent un controle total au groupe 'Everyone'. Restreindre immediatement les permissions." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/configuring-file-system-permissions"
+        } else {
+            Add-AuditRecommendation -Category "Storage" -Check "ACL dossiers critiques" -Status "OK" -Severity "Low" `
+                -Recommendation "Les permissions sur les dossiers critiques semblent appropriees. Continuer a surveiller." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/configuring-file-system-permissions"
+        }
+
+        if ($script:auditResults.Storage.AutoRun -and -not $script:auditResults.Storage.AutoRun.DisabledForAll) {
+            Add-AuditRecommendation -Category "Storage" -Check "AutoRun" -Status "WARN" -Severity "Medium" `
+                -Recommendation "L'execution automatique n'est pas completement desactivee. Desactiver AutoRun pour tous les types de lecteurs." `
+                -Link "https://support.microsoft.com/topic/how-to-disable-the-autorun-functionality-in-windows-6f7b0c43-3e56-d2b3-4c3d-c44fe38c8c2e"
+        } else {
+            Add-AuditRecommendation -Category "Storage" -Check "AutoRun" -Status "OK" -Severity "Low" `
+                -Recommendation "AutoRun est desactive pour tous les types de lecteurs. Maintenir cette configuration." `
+                -Link "https://support.microsoft.com/topic/how-to-disable-the-autorun-functionality-in-windows-6f7b0c43-3e56-d2b3-4c3d-c44fe38c8c2e"
+        }
+        
         return $true
     }
     catch {
@@ -733,7 +1057,7 @@ function Get-LoggingAndAuditAudit {
     [CmdletBinding()]
     param()
     
-    Write-Output "Audit de la journalisation et des événements..."
+    Write-Output "Audit de la journalisation et des evenements..."
     
     try {
         # Politique d'audit
@@ -741,12 +1065,12 @@ function Get-LoggingAndAuditAudit {
         auditpol.exe /get /category:* | Out-File -FilePath $auditPolicyPath -Force
         $script:auditResults.LoggingAndAudit.AuditPolicyFile = $auditPolicyPath
         
-        # Configuration des journaux d'événements Windows
+        # Configuration des journaux d'evenements Windows
         $eventLogs = Get-WinEvent -ListLog "Application", "System", "Security" -ErrorAction SilentlyContinue | 
                     Select-Object LogName, LogMode, MaximumSizeInBytes, IsEnabled, RecordCount
         $script:auditResults.LoggingAndAudit.EventLogs = $eventLogs
         
-        # Vérification de la redirection des journaux
+        # Verification de la redirection des journaux
         try {
             $forwardingLog = Get-WinEvent -ListLog "Microsoft-Windows-Forwarding/Operational" -ErrorAction SilentlyContinue
             
@@ -763,20 +1087,20 @@ function Get-LoggingAndAuditAudit {
                     $script:auditResults.LoggingAndAudit.RecentForwardingEvents = $forwardingEvents
                 }
                 catch {
-                    $script:auditResults.LoggingAndAudit.RecentForwardingEvents = "Aucun événement récent trouvé ou erreur lors de la récupération"
+                    $script:auditResults.LoggingAndAudit.RecentForwardingEvents = "Aucun evenement recent trouve ou erreur lors de la recuperation"
                 }
             }
         }
         catch {
-            $script:auditResults.LoggingAndAudit.EventForwarding = "Impossible de déterminer la configuration de redirection des journaux"
+            $script:auditResults.LoggingAndAudit.EventForwarding = "Impossible de determiner la configuration de redirection des journaux"
         }
         
-        # Vérification de Sysmon
+        # Verification de Sysmon
         $sysmonService = Get-Service -Name Sysmon -ErrorAction SilentlyContinue
         
         $script:auditResults.LoggingAndAudit.Sysmon = @{
             Installed = if ($sysmonService) { $true } else { $false }
-            Status = if ($sysmonService) { $sysmonService.Status } else { "Non installé" }
+            Status = if ($sysmonService) { $sysmonService.Status } else { "Non installe" }
             StartType = if ($sysmonService) { $sysmonService.StartType } else { "N/A" }
         }
         
@@ -787,7 +1111,7 @@ function Get-LoggingAndAuditAudit {
                 $script:auditResults.LoggingAndAudit.RecentSysmonEvents = $sysmonEvents
             }
             catch {
-                $script:auditResults.LoggingAndAudit.SysmonEventsError = "Impossible d'obtenir les événements Sysmon: $_"
+                $script:auditResults.LoggingAndAudit.SysmonEventsError = "Impossible d'obtenir les evenements Sysmon: $_"
             }
         }
         
@@ -798,11 +1122,11 @@ function Get-LoggingAndAuditAudit {
             
             $script:auditResults.LoggingAndAudit.PowerShellScriptBlockLogging = @{
                 Enabled = if ($scriptBlockLogging -and $scriptBlockLogging.EnableScriptBlockLogging -eq 1) { $true } else { $false }
-                Value = if ($scriptBlockLogging) { $scriptBlockLogging.EnableScriptBlockLogging } else { "Non configuré" }
+                Value = if ($scriptBlockLogging) { $scriptBlockLogging.EnableScriptBlockLogging } else { "Non configure" }
             }
         }
         catch {
-            $script:auditResults.LoggingAndAudit.PowerShellScriptBlockLogging = "Impossible de déterminer la configuration de Script Block Logging"
+            $script:auditResults.LoggingAndAudit.PowerShellScriptBlockLogging = "Impossible de determiner la configuration de Script Block Logging"
         }
         
         # Transcription PowerShell
@@ -812,12 +1136,54 @@ function Get-LoggingAndAuditAudit {
             
             $script:auditResults.LoggingAndAudit.PowerShellTranscription = @{
                 Enabled = if ($transcription -and $transcription.EnableTranscripting -eq 1) { $true } else { $false }
-                OutputDirectory = if ($transcription -and $transcription.OutputDirectory) { $transcription.OutputDirectory } else { "Non configuré" }
+                OutputDirectory = if ($transcription -and $transcription.OutputDirectory) { $transcription.OutputDirectory } else { "Non configure" }
                 EnableInvocationHeader = if ($transcription -and $transcription.EnableInvocationHeader -eq 1) { $true } else { $false }
             }
         }
         catch {
-            $script:auditResults.LoggingAndAudit.PowerShellTranscription = "Impossible de déterminer la configuration de transcription PowerShell"
+            $script:auditResults.LoggingAndAudit.PowerShellTranscription = "Impossible de determiner la configuration de transcription PowerShell"
+        }
+        
+        # --- Recommandations (Journalisation et audit) ---
+        if ($script:auditResults.LoggingAndAudit.Sysmon -and -not $script:auditResults.LoggingAndAudit.Sysmon.Installed) {
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "Sysmon" -Status "WARN" -Severity "High" `
+                -Recommendation "Sysmon n'est pas installe. Deployer Sysmon pour une journalisation avancee des evenements systeme." `
+                -Link "https://learn.microsoft.com/sysinternals/downloads/sysmon"
+        } else {
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "Sysmon" -Status "OK" -Severity "Low" `
+                -Recommendation "Sysmon est installe. Verifier la configuration et la rotation des logs." `
+                -Link "https://learn.microsoft.com/sysinternals/downloads/sysmon"
+        }
+
+        if ($script:auditResults.LoggingAndAudit.PowerShellScriptBlockLogging -and -not $script:auditResults.LoggingAndAudit.PowerShellScriptBlockLogging.Enabled) {
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "PowerShell Script Block Logging" -Status "WARN" -Severity "Medium" `
+                -Recommendation "La journalisation des blocs de script PowerShell n'est pas activee. Activer pour detecter les activites malveillantes." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_logging"
+        } else {
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "PowerShell Script Block Logging" -Status "OK" -Severity "Low" `
+                -Recommendation "La journalisation PowerShell est activee. Surveiller les evenements dans les logs Windows." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_logging"
+        }
+
+        if ($script:auditResults.LoggingAndAudit.PowerShellTranscription -and -not $script:auditResults.LoggingAndAudit.PowerShellTranscription.Enabled) {
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "PowerShell Transcription" -Status "WARN" -Severity "Medium" `
+                -Recommendation "La transcription PowerShell n'est pas activee. Activer pour enregistrer toutes les sessions PowerShell." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_logging"
+        } else {
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "PowerShell Transcription" -Status "OK" -Severity "Low" `
+                -Recommendation "La transcription PowerShell est activee. Verifier l'emplacement et la retention des fichiers." `
+                -Link "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_logging"
+        }
+
+        $securityLogMaxSize = ($script:auditResults.LoggingAndAudit.EventLogs | Where-Object { $_.LogName -eq "Security" }).MaximumSizeInBytes
+        if ($securityLogMaxSize -lt 104857600) {  # 100 MB
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "Taille log Security" -Status "WARN" -Severity "Medium" `
+                -Recommendation "Le journal Security est configure avec une taille maximale insuffisante. Augmenter a au moins 100 MB." `
+                -Link "https://learn.microsoft.com/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations"
+        } else {
+            Add-AuditRecommendation -Category "LoggingAndAudit" -Check "Taille log Security" -Status "OK" -Severity "Low" `
+                -Recommendation "Le journal Security a une taille appropriee. Surveiller la rotation et l'archivage." `
+                -Link "https://learn.microsoft.com/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations"
         }
         
         return $true
@@ -830,10 +1196,136 @@ function Get-LoggingAndAuditAudit {
 }
 
 #------------------------------------------------------------
-# Module: Génération des rapports
+# Module: Generation des rapports
 #------------------------------------------------------------
 
-# Note: La fonction Export-AuditResults est importée depuis Export-AuditResults.ps1
+# Note: La fonction Export-AuditResults est importee depuis Export-AuditResults.ps1
+
+#------------------------------------------------------------
+# Module: Calcul du score d'audit et recommandations
+#------------------------------------------------------------
+
+function Calculate-AuditScore {
+    [CmdletBinding()]
+    param()
+    
+    Write-Output "Calcul du score de conformite et generation du resume..."
+    
+    try {
+        # Collecte de toutes les recommandations
+        $allRecommendations = @()
+        foreach ($category in $script:auditResults.Keys) {
+            if ($script:auditResults[$category] -is [hashtable] -and $script:auditResults[$category].Recommendations) {
+                $allRecommendations += $script:auditResults[$category].Recommendations
+            }
+        }
+        
+        # Calcul du score base principalement sur les vulnerabilites critiques
+        $totalChecks = $allRecommendations.Count
+        if ($totalChecks -gt 0) {
+            # Comptage par statut et criticite
+            $okCount = ($allRecommendations | Where-Object { $_.Status -eq "OK" }).Count
+            $warnCount = ($allRecommendations | Where-Object { $_.Status -eq "WARN" }).Count
+            $failCount = ($allRecommendations | Where-Object { $_.Status -eq "FAIL" }).Count
+            
+            # Analyse des vulnerabilites par criticite
+            $criticalFailures = ($allRecommendations | Where-Object { $_.Status -eq "FAIL" -and $_.Severity -eq "Critical" }).Count
+            $highFailures = ($allRecommendations | Where-Object { $_.Status -eq "FAIL" -and $_.Severity -eq "High" }).Count
+            $mediumFailures = ($allRecommendations | Where-Object { $_.Status -eq "FAIL" -and $_.Severity -eq "Medium" }).Count
+            $lowFailures = ($allRecommendations | Where-Object { $_.Status -eq "FAIL" -and $_.Severity -eq "Low" }).Count
+            
+            $criticalWarnings = ($allRecommendations | Where-Object { $_.Status -eq "WARN" -and $_.Severity -eq "Critical" }).Count
+            $highWarnings = ($allRecommendations | Where-Object { $_.Status -eq "WARN" -and $_.Severity -eq "High" }).Count
+            $mediumWarnings = ($allRecommendations | Where-Object { $_.Status -eq "WARN" -and $_.Severity -eq "Medium" }).Count
+            
+            # Nouveau calcul base sur les penalites par criticite
+            $baseScore = 100.0
+            
+            # Penalites severes pour les vulnerabilites critiques
+            $baseScore -= ($criticalFailures * 40)      # -40 points par FAIL critique
+            $baseScore -= ($criticalWarnings * 25)      # -25 points par WARN critique
+            
+            # Penalites importantes pour les vulnerabilites High
+            $baseScore -= ($highFailures * 15)          # -15 points par FAIL high
+            $baseScore -= ($highWarnings * 8)           # -8 points par WARN high
+            
+            # Penalites moderees pour Medium
+            $baseScore -= ($mediumFailures * 5)         # -5 points par FAIL medium  
+            $baseScore -= ($mediumWarnings * 3)         # -3 points par WARN medium
+            
+            # Penalites legeres pour Low
+            $baseScore -= ($lowFailures * 2)            # -2 points par FAIL low
+            
+            # Le score ne peut pas être negatif
+            $score = [math]::Max(0, [math]::Round($baseScore, 1))
+            
+            # Determination de l'appreciation basee sur les vulnerabilites critiques
+            if ($criticalFailures -gt 0) {
+                $rating = "CRITIQUE - $criticalFailures vulnerabilite(s) critique(s)"
+                $score = [math]::Min($score, 25)  # Score max de 25% avec des vulns critiques
+            } elseif ($highFailures -ge 3) {
+                $rating = "RISQUE ELEVE - $highFailures vulnerabilites majeures"  
+                $score = [math]::Min($score, 40)  # Score max de 40% avec 3+ vulns high
+            } elseif ($highFailures -gt 0) {
+                $rating = "RISQUE MODERE - $highFailures vulnerabilite(s) majeure(s)"
+                $score = [math]::Min($score, 60)  # Score max de 60% avec des vulns high
+            } else {
+                # Appreciation normale basee sur le score
+                $rating = if ($score -ge 90) { "Excellent" }
+                         elseif ($score -ge 80) { "Conforme" } 
+                         elseif ($score -ge 65) { "Partiellement conforme" }
+                         elseif ($score -ge 50) { "Insuffisant" }
+                         else { "Non conforme" }
+            }
+            
+            # Top findings (problemes prioritaires avec ponderation)
+            $topFindings = $allRecommendations | 
+                          Where-Object { $_.Status -in @("FAIL", "WARN") } |
+                          Sort-Object @{Expression={if($_.Status -eq "FAIL") {0} else {1}}}, 
+                                     @{Expression={switch($_.Severity) {"Critical" {0} "High" {1} "Medium" {2} "Low" {3} default {4}}}} |
+                          Select-Object -First 5
+            
+            # Stockage du resume avec metriques detaillees
+            $script:auditResults.Summary = @{
+                Score = $score
+                Rating = $rating
+                Counts = @{
+                    OK = $okCount
+                    WARN = $warnCount
+                    FAIL = $failCount
+                    Total = $totalChecks
+                }
+                VulnerabilitiesBySeverity = @{
+                    Critical = @{ FAIL = $criticalFailures; WARN = $criticalWarnings }
+                    High = @{ FAIL = $highFailures; WARN = $highWarnings }
+                    Medium = @{ FAIL = $mediumFailures; WARN = $mediumWarnings }
+                    Low = @{ FAIL = $lowFailures; WARN = ($allRecommendations | Where-Object { $_.Status -eq "WARN" -and $_.Severity -eq "Low" }).Count }
+                }
+                ScoringMethod = @{
+                    BaseScore = 100
+                    CriticalPenalties = ($criticalFailures * 40 + $criticalWarnings * 25)
+                    HighPenalties = ($highFailures * 15 + $highWarnings * 8)  
+                    MediumPenalties = ($mediumFailures * 5 + $mediumWarnings * 3)
+                    LowPenalties = ($lowFailures * 2)
+                }
+                TopFindings = $topFindings
+            }
+        } else {
+            $script:auditResults.Summary = @{
+                Score = "N/A"
+                Rating = "Aucune recommandation generee"
+                Counts = @{ OK = 0; WARN = 0; FAIL = 0 }
+                TopFindings = @()
+            }
+        }
+        
+        return $true
+    }
+    catch {
+        Write-Warning "Erreur lors du calcul du score: $_"
+        return $false
+    }
+}
 
 #------------------------------------------------------------
 # Fonction principale d'audit
@@ -850,19 +1342,19 @@ function Start-WindowsSecurityAudit {
     # Initialisation de l'environnement
     $initResult = Initialize-AuditEnvironment
     if (-not $initResult) {
-        Write-Error "Échec de l'initialisation de l'environnement. Arrêt de l'audit."
+        Write-Error "Échec de l'initialisation de l'environnement. Arret de l'audit."
         return
     }
     
-    # Exécution des modules d'audit
+    # Execution des modules d'audit
     $modules = @(
-        @{ Name = "Informations système"; Function = "Get-SystemInfoAudit" },
-        @{ Name = "Stratégies de groupe"; Function = "Get-GroupPolicyAudit" },
+        @{ Name = "Informations systeme"; Function = "Get-SystemInfoAudit" },
+        @{ Name = "Strategies de groupe"; Function = "Get-GroupPolicyAudit" },
         @{ Name = "Utilisateurs et groupes"; Function = "Get-UsersAndGroupsAudit" },
         @{ Name = "Authentification"; Function = "Get-AuthenticationAudit" },
         @{ Name = "Services et processus"; Function = "Get-ServicesAndProcessesAudit" },
-        @{ Name = "Réseau"; Function = "Get-NetworkAudit" },
-        @{ Name = "Logiciels et sécurité"; Function = "Get-SoftwareAndSecurityAudit" },
+        @{ Name = "Reseau"; Function = "Get-NetworkAudit" },
+        @{ Name = "Logiciels et securite"; Function = "Get-SoftwareAndSecurityAudit" },
         @{ Name = "Stockage"; Function = "Get-StorageAudit" },
         @{ Name = "Journalisation et audit"; Function = "Get-LoggingAndAuditAudit" }
     )
@@ -870,23 +1362,113 @@ function Start-WindowsSecurityAudit {
     foreach ($module in $modules) {
         Write-Output "`n== Module: $($module.Name) =="
         try {
-            & $module.Function
+            $result = & $module.Function
+            Write-Host "Module $($module.Name) termine avec succes (resultat: $result)" -ForegroundColor Green
         }
         catch {
-            Write-Error "Erreur lors de l'exécution du module $($module.Name): $_"
+            Write-Error "Erreur lors de l'execution du module $($module.Name): $_"
+            Write-Host "Details de l'erreur: $($_.ScriptStackTrace)" -ForegroundColor Red
         }
     }
     
-    # Génération des rapports
+    # Calcul du score et generation des recommandations
+    try { 
+        Calculate-AuditScore 
+    } catch { 
+        Write-Warning "Erreur lors du calcul du score: $_"
+    }
+    
+    # ===== CODE DE DEBOGAGE =====
+    Write-Host "`n=== DIAGNOSTIC AVANT EXPORT ===" -ForegroundColor Yellow
+    Write-Host "Nombre total de categories: $($script:auditResults.Count)" -ForegroundColor Cyan
+    
+    foreach ($category in $script:auditResults.Keys) {
+        Write-Host "`n--- Categorie: $category ---" -ForegroundColor Green
+        
+        if ($script:auditResults[$category] -is [hashtable]) {
+            Write-Host "  Proprietes disponibles: $($script:auditResults[$category].Keys.Count)" -ForegroundColor Gray
+            
+            # Afficher les cles principales
+            foreach ($key in $script:auditResults[$category].Keys) {
+                if ($key -eq "Recommendations") {
+                    $recCount = if ($script:auditResults[$category].Recommendations) { $script:auditResults[$category].Recommendations.Count } else { 0 }
+                    Write-Host "    - $key : $recCount recommandations" -ForegroundColor White
+                } else {
+                    $value = $script:auditResults[$category][$key]
+                    $valueType = if ($value -eq $null) { "null" } elseif ($value -is [string]) { "string" } elseif ($value -is [array]) { "array[$($value.Count)]" } elseif ($value -is [hashtable]) { "hashtable[$($value.Keys.Count)]" } else { $value.GetType().Name }
+                    Write-Host "    - $key : $valueType" -ForegroundColor Gray
+                }
+            }
+        } else {
+            Write-Host "  Type: $($script:auditResults[$category].GetType().Name)" -ForegroundColor Red
+        }
+    }
+    
+    # Verifier les recommandations globales
+    $allRecs = @()
+    foreach ($cat in $script:auditResults.Keys) {
+        if ($script:auditResults[$cat] -is [hashtable] -and $script:auditResults[$cat].Recommendations) {
+            $allRecs += $script:auditResults[$cat].Recommendations
+        }
+    }
+    
+    Write-Host "`n--- RÉSUMÉ RECOMMANDATIONS ---" -ForegroundColor Magenta
+    Write-Host "Total recommandations: $($allRecs.Count)" -ForegroundColor White
+    if ($allRecs.Count -gt 0) {
+        $okCount = ($allRecs | Where-Object { $_.Status -eq 'OK' }).Count
+        $warnCount = ($allRecs | Where-Object { $_.Status -eq 'WARN' }).Count
+        $failCount = ($allRecs | Where-Object { $_.Status -eq 'FAIL' }).Count
+        Write-Host "  OK: $okCount | WARN: $warnCount | FAIL: $failCount" -ForegroundColor White
+        
+        # Analyse par criticite
+        Write-Host "`nVulnerabilites par criticite:" -ForegroundColor Cyan
+        $criticalFail = ($allRecs | Where-Object { $_.Status -eq 'FAIL' -and $_.Severity -eq 'Critical' }).Count
+        $highFail = ($allRecs | Where-Object { $_.Status -eq 'FAIL' -and $_.Severity -eq 'High' }).Count
+        $mediumFail = ($allRecs | Where-Object { $_.Status -eq 'FAIL' -and $_.Severity -eq 'Medium' }).Count
+        $lowFail = ($allRecs | Where-Object { $_.Status -eq 'FAIL' -and $_.Severity -eq 'Low' }).Count
+        
+        if ($criticalFail -gt 0) { Write-Host "  [CRITICAL]: $criticalFail vulnerabilites" -ForegroundColor Red }
+        if ($highFail -gt 0) { Write-Host "  [HIGH]: $highFail vulnerabilites" -ForegroundColor DarkRed }
+        if ($mediumFail -gt 0) { Write-Host "  [MEDIUM]: $mediumFail vulnerabilites" -ForegroundColor Yellow }
+        if ($lowFail -gt 0) { Write-Host "  [LOW]: $lowFail vulnerabilites" -ForegroundColor Green }
+        
+        # Score calcule si disponible
+        if ($script:auditResults.Summary -and $script:auditResults.Summary.Score) {
+            Write-Host "`nScore de securite: $($script:auditResults.Summary.Score)% - $($script:auditResults.Summary.Rating)" -ForegroundColor $(if($script:auditResults.Summary.Score -ge 80) {'Green'} elseif($script:auditResults.Summary.Score -ge 60) {'Yellow'} else {'Red'})
+        }
+        
+        # Afficher les vulnerabilites les plus critiques
+        Write-Host "`nVulnerabilites prioritaires:" -ForegroundColor Red
+        $criticalIssues = $allRecs | Where-Object { $_.Status -eq 'FAIL' } | Sort-Object @{Expression={switch($_.Severity) {"Critical" {0} "High" {1} "Medium" {2} "Low" {3}}}} | Select-Object -First 3
+        $criticalIssues | ForEach-Object {
+            $color = switch($_.Severity) { "Critical" {"Red"} "High" {"DarkRed"} "Medium" {"Yellow"} default {"Gray"} }
+            Write-Host "  [$($_.Severity)] $($_.Category): $($_.Check)" -ForegroundColor $color
+        }
+    }
+    
+    Write-Host "`n================================`n" -ForegroundColor Yellow
+    # ===== FIN CODE DE DEBOGAGE =====
+    
+    # Generation des rapports
+    Write-Output "Generation des rapports d'audit..."
+    
+    # Forcer le rechargement de la fonction Export-AuditResults
+    . "$PSScriptRoot\Export-AuditResults.ps1"
+    
+    # Debug: Verifier la signature de la fonction
+    $func = Get-Command Export-AuditResults
+    Write-Output "DEBUG: Signature de la fonction:"
+    Write-Output $func.Parameters.Keys
+    
     Export-AuditResults -AuditResults $script:auditResults -ReportPath $script:reportPath
     
     Write-Output "`n=================================="
     Write-Output "  AUDIT DE SÉCURITÉ TERMINÉ"
     Write-Output "=================================="
-    Write-Output "Les résultats ont été sauvegardés dans: $script:reportPath"
+    Write-Output "Les resultats ont ete sauvegardes dans: $script:reportPath"
     Write-Output "Rapport HTML: $script:reportPath\audit-report.html"
-    Write-Output "Résumé texte: $script:reportPath\audit-summary.txt"
+    Write-Output "Resume texte: $script:reportPath\audit-summary.txt"
 }
 
-# Point d'entrée du script
+# Point d'entree du script
 Start-WindowsSecurityAudit

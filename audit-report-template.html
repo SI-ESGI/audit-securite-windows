@@ -67,12 +67,39 @@
             padding: 10px;
             margin: 10px 0;
         }
+        .info { 
+            background-color: #e6f7ff; 
+            border-left: 4px solid #1890ff;
+            padding: 10px;
+            margin: 10px 0;
+        }
         .summary {
             background-color: #f8f8f8;
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
         }
+        .exec-summary {
+            background-color: #f0f7ff;
+            border-left: 4px solid #003366;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0 25px 0;
+        }
+        .kpi {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .kpi-good { background-color: #e8f5e9; color: #1b5e20; }
+        .kpi-mid { background-color: #fff3e0; color: #e65100; }
+        .kpi-bad { background-color: #ffebee; color: #b71c1c; }
+        .small { color: #555; font-size: 13px; }
+        .status-ok { color: #1b5e20; font-weight: bold; }
+        .status-warn { color: #e65100; font-weight: bold; }
+        .status-fail { color: #b71c1c; font-weight: bold; }
         footer {
             margin-top: 30px;
             border-top: 1px solid #ddd;
@@ -91,8 +118,29 @@
         <p><strong>Version:</strong> {{OS_VERSION}}</p>
     </div>
 
+    <div class="summary" id="executive-summary">
+        <h2 style="margin-top:0">Résumé exécutif</h2>
+        <p><strong>Machine:</strong> {{COMPUTER_NAME}} &nbsp;|&nbsp; <strong>Date:</strong> {{REPORT_DATE}}</p>
+        <p><strong>Système d'exploitation:</strong> {{OS_NAME}} &nbsp;|&nbsp; <strong>Version:</strong> {{OS_VERSION}}</p>
+        <p><strong>Score de conformité:</strong> <span style="font-size:22px;font-weight:800;">{{AUDIT_SCORE}}/100</span>
+           &nbsp;—&nbsp; <strong>Appréciation:</strong> {{AUDIT_RATING}}</p>
+        <p><strong>Constats:</strong>
+           <span class="kpi kpi-good">OK: {{AUDIT_OK_COUNT}}</span>
+           <span class="kpi kpi-mid">WARN: {{AUDIT_WARN_COUNT}}</span>
+           <span class="kpi kpi-bad">FAIL: {{AUDIT_FAIL_COUNT}}</span>
+        </p>
+
+        <h3>Points prioritaires (Top)</h3>
+        {{AUDIT_TOP_FINDINGS}}
+        
+        <div class="info">
+            <strong>Approche entreprise :</strong> ce rapport est pensé pour être comparé à une baseline (Microsoft Security Baselines / SCT). Le score est un indicateur pédagogique basé sur les recommandations générées.
+        </div>
+    </div>
+
     <h2>Table des matières</h2>
     <ul>
+        <li><a href="#executive-summary">Résumé exécutif</a></li>
         <li><a href="#system-info">Informations système</a></li>
         <li><a href="#group-policy">Stratégies de groupe</a></li>
         <li><a href="#users-groups">Utilisateurs et groupes</a></li>
@@ -102,6 +150,7 @@
         <li><a href="#software-security">Logiciels et sécurité</a></li>
         <li><a href="#storage">Stockage</a></li>
         <li><a href="#logging-audit">Journalisation et audit</a></li>
+        <li><a href="#recommendations">Recommandations de sécurité</a></li>
     </ul>
 
     <h2 id="system-info">Informations système</h2>
@@ -376,6 +425,22 @@
         <ul>
             <li><a href="audit-policy.txt">Politique d'audit complète</a></li>
         </ul>
+    </div>
+
+    <h2 id="recommendations">Recommandations de sécurité</h2>
+    <div class="section">
+        <p>Les recommandations ci-dessous sont générées en fonction de l'état observé pendant l'audit (OK/WARN/FAIL).</p>
+        <table>
+            <tr>
+                <th>Catégorie</th>
+                <th>Contrôle</th>
+                <th>État</th>
+                <th>Sévérité</th>
+                <th>Recommandation</th>
+                <th>Référence</th>
+            </tr>
+            {{AUDIT_RECOMMENDATIONS_TABLE}}
+        </table>
     </div>
 
     <footer>
