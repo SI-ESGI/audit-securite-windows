@@ -169,6 +169,13 @@ function Export-AuditResults {
             '{{AUDIT_WARN_COUNT}}' = if ($AuditResults.Summary) { $AuditResults.Summary.Counts.WARN } else { "0" }
             '{{AUDIT_FAIL_COUNT}}' = if ($AuditResults.Summary) { $AuditResults.Summary.Counts.FAIL } else { "0" }
             '{{AUDIT_GENERATED_DATE}}' = if ($AuditResults.Summary) { $AuditResults.Summary.GeneratedAt } else { Get-Date }
+            
+            # Compteurs de sévérité pour les filtres
+            '{{TOTAL_RECOMMENDATIONS_COUNT}}' = $totalCount
+            '{{CRITICAL_COUNT}}' = $criticalCount
+            '{{HIGH_COUNT}}' = $highCount
+            '{{MEDIUM_COUNT}}' = $mediumCount
+            '{{LOW_COUNT}}' = $lowCount
         }
         
         # Gestion speciale pour les volumes BitLocker
@@ -207,6 +214,33 @@ function Export-AuditResults {
         # Generation du tableau des recommandations
         $recommendationsTableHtml = ""
         $allRecommendations = Get-AllAuditRecommendations -AuditResults $AuditResults
+        
+        # Calcul robuste des compteurs de sévérité
+        $totalCount = 0
+        $criticalCount = 0
+        $highCount = 0
+        $mediumCount = 0
+        $lowCount = 0
+        
+        if ($allRecommendations -and $allRecommendations.Count -gt 0) {
+            $totalCount = $allRecommendations.Count
+            
+            foreach ($rec in $allRecommendations) {
+                if ($rec.Severity) {
+                    $severity = $rec.Severity.ToString().ToLower()
+                    switch -Regex ($severity) {
+                        "critical|critique" { $criticalCount++ }
+                        "high|elevee|élevée" { $highCount++ }
+                        "medium|moyenne" { $mediumCount++ }
+                        "low|faible" { $lowCount++ }
+                    }
+                }
+            }
+        }
+        
+        # Debug des compteurs
+        Write-Host "DEBUG COMPTEURS: Total=$totalCount, Critical=$criticalCount, High=$highCount, Medium=$mediumCount, Low=$lowCount" -ForegroundColor Green
+        
         if ($allRecommendations -and $allRecommendations.Count -gt 0) {
             foreach ($rec in $allRecommendations) {
                 $statusClass = "status-" + ($rec.Status.ToLower())
