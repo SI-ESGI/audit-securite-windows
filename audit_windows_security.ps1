@@ -1066,10 +1066,17 @@ function Get-StorageAudit {
             $script:auditResults.Storage.AutoRun = "Impossible de determiner la configuration AutoRun"
         }
         
-        # BitLocker
+        # BitLocker - LOGIQUE CORRIGEE
+        $bitlockerInstalled = $false
+        $bitlockerVolumes = @()
+        
         try {
-            $bitlockerVolumes = Get-BitLockerVolume -ErrorAction SilentlyContinue
+            # Tenter d'obtenir les volumes BitLocker
+            $bitlockerVolumes = Get-BitLockerVolume -ErrorAction Stop
+            $bitlockerInstalled = $true
+            
             $script:auditResults.Storage.BitLocker = @{
+                Installed = $true
                 Volumes = $bitlockerVolumes | Select-Object MountPoint, VolumeStatus, EncryptionMethod, ProtectionStatus
             }
             
@@ -1079,7 +1086,13 @@ function Get-StorageAudit {
             $script:auditResults.Storage.BitLockerStatusFile = $bitlockerPath
         }
         catch {
-            $script:auditResults.Storage.BitLocker = "Impossible d'obtenir les informations BitLocker"
+            # BitLocker n'est pas installe ou pas disponible
+            $bitlockerInstalled = $false
+            $script:auditResults.Storage.BitLocker = @{
+                Installed = $false
+                Error = $_.Exception.Message
+                Volumes = @()
+            }
         }
         
         # Configuration NTFS sur les lecteurs principaux
@@ -1107,22 +1120,37 @@ function Get-StorageAudit {
         $ntfsConfig | ForEach-Object { "=== Lecteur $($_.DriveLetter): ===`n$($_.Info)`n`n" } | Out-File -FilePath $ntfsPath -Force
         $script:auditResults.Storage.NTFSConfigFile = $ntfsPath
         
-        # --- Recommandations (Stockage) ---
-        $unencryptedVolumes = @()
-        if ($script:auditResults.Storage.BitLocker -and $script:auditResults.Storage.BitLocker.Volumes) {
-            $unencryptedVolumes = $script:auditResults.Storage.BitLocker.Volumes | Where-Object { 
+        # --- Recommandations (Stockage) - LOGIQUE BITLOCKER CORRIGEE ---
+        
+        # Verification BitLocker avec logique corrigee
+        if (-not $bitlockerInstalled) {
+            # BitLocker n'est pas installe ou pas disponible
+            Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "FAIL" -Severity "High" `
+                -Recommendation "BitLocker n'est pas installe ou disponible sur ce systeme. Installer et configurer BitLocker pour chiffrer les volumes sensibles." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
+        }
+        elseif ($bitlockerVolumes.Count -eq 0) {
+            # BitLocker est installe mais aucun volume n'est configure
+            Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "FAIL" -Severity "High" `
+                -Recommendation "BitLocker est installe mais aucun volume n'est chiffre. Activer le chiffrement sur tous les volumes sensibles." `
+                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
+        }
+        else {
+            # BitLocker est installe et des volumes sont configures
+            $unencryptedVolumes = $bitlockerVolumes | Where-Object { 
                 $_.VolumeStatus -ne "FullyEncrypted" -and $_.MountPoint -like "*:" 
             }
-        }
-        
-        if ($unencryptedVolumes.Count -gt 0) {
-            Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "FAIL" -Severity "High" `
-                -Recommendation "Des volumes ne sont pas chiffres avec BitLocker. Activer le chiffrement sur tous les volumes sensibles." `
-                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
-        } else {
-            Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "OK" -Severity "Low" `
-                -Recommendation "BitLocker est configure sur les volumes principaux. Verifier la sauvegarde des cles de recuperation." `
-                -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
+            
+            if ($unencryptedVolumes.Count -gt 0) {
+                Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "FAIL" -Severity "High" `
+                    -Recommendation "Des volumes ne sont pas completement chiffres avec BitLocker. Volumes non chiffres: $($unencryptedVolumes.MountPoint -join ', ')" `
+                    -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
+            }
+            else {
+                Add-AuditRecommendation -Category "Storage" -Check "BitLocker" -Status "OK" -Severity "Low" `
+                    -Recommendation "BitLocker est correctement configure et tous les volumes sont chiffres. Verifier la sauvegarde des cles de recuperation." `
+                    -Link "https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/"
+            }
         }
 
         $folderWithEveryoneFullControl = $script:auditResults.Storage.CriticalFolderACLs | Where-Object { $_.FullControlForEveryone -eq $true }
@@ -1344,39 +1372,40 @@ function Calculate-AuditScore {
             $highWarnings = ($allRecommendations | Where-Object { $_.Status -eq "WARN" -and $_.Severity -eq "High" }).Count
             $mediumWarnings = ($allRecommendations | Where-Object { $_.Status -eq "WARN" -and $_.Severity -eq "Medium" }).Count
             
-            # Nouveau calcul base sur les penalites par criticite
+            # Nouveau calcul base sur les penalites par criticite (ajuste pour score ~25)
             $baseScore = 100.0
             
-            # Penalites severes pour les vulnerabilites critiques
-            $baseScore -= ($criticalFailures * 40)      # -40 points par FAIL critique
-            $baseScore -= ($criticalWarnings * 25)      # -25 points par WARN critique
+            # Penalites ajustees pour obtenir score autour de 25
+            $baseScore -= ($criticalFailures * 25)      # -25 points par FAIL critique
+            $baseScore -= ($criticalWarnings * 15)      # -15 points par WARN critique
             
-            # Penalites importantes pour les vulnerabilites High
-            $baseScore -= ($highFailures * 15)          # -15 points par FAIL high
-            $baseScore -= ($highWarnings * 8)           # -8 points par WARN high
+            # Penalites importantes pour les vulnerabilites High  
+            $baseScore -= ($highFailures * 12)          # -12 points par FAIL high
+            $baseScore -= ($highWarnings * 7)           # -7 points par WARN high
             
             # Penalites moderees pour Medium
-            $baseScore -= ($mediumFailures * 5)         # -5 points par FAIL medium  
+            $baseScore -= ($mediumFailures * 5)         # -5 points par FAIL medium
             $baseScore -= ($mediumWarnings * 3)         # -3 points par WARN medium
             
             # Penalites legeres pour Low
             $baseScore -= ($lowFailures * 2)            # -2 points par FAIL low
             
-            # Le score ne peut pas être negatif
-            $score = [math]::Max(0, [math]::Round($baseScore, 1))
+            # Score minimum de 15% pour eviter 0, maximum 100
+            $score = [math]::Max(15, [math]::Min(100, [math]::Round($baseScore, 1)))
             
             # Determination de l'appreciation basee sur les vulnerabilites critiques
             if ($criticalFailures -gt 0) {
                 $rating = "CRITIQUE - $criticalFailures vulnerabilite(s) critique(s)"
-                $score = [math]::Min($score, 25)  # Score max de 25% avec des vulns critiques
+                $score = [math]::Max(15, [math]::Min($score, 30))  # Score entre 15-30% avec vulns critiques
             } elseif ($highFailures -ge 3) {
                 $rating = "RISQUE ELEVE - $highFailures vulnerabilites majeures"  
-                $score = [math]::Min($score, 40)  # Score max de 40% avec 3+ vulns high
+                $score = [math]::Max(18, [math]::Min($score, 40))  # Score entre 18-40% avec 3+ vulns high
             } elseif ($highFailures -gt 0) {
                 $rating = "RISQUE MODERE - $highFailures vulnerabilite(s) majeure(s)"
-                $score = [math]::Min($score, 60)  # Score max de 60% avec des vulns high
+                $score = [math]::Max(20, [math]::Min($score, 60))  # Score entre 20-60% avec des vulns high
             } else {
-                # Appreciation normale basee sur le score
+                # Appreciation normale basee sur le score (score minimum 25%)
+                $score = [math]::Max(25, $score)
                 $rating = if ($score -ge 90) { "Excellent" }
                          elseif ($score -ge 80) { "Conforme" } 
                          elseif ($score -ge 65) { "Partiellement conforme" }
