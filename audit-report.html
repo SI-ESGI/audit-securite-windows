@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport d'audit de sécurité Windows - WIN-RNGUKIGIR06</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f0f4ff;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1 { 
+            background: #1a365d;
+            background: -webkit-linear-gradient(135deg, #1a365d 0%, #2563eb 50%, #3b82f6 100%);
+            background: -moz-linear-gradient(135deg, #1a365d 0%, #2563eb 50%, #3b82f6 100%);
+            background: linear-gradient(135deg, #1a365d 0%, #2563eb 50%, #3b82f6 100%);
+            color: white;
+            padding: 25px;
+            margin: -20px -20px 30px -20px;
+            border-radius: 0 0 15px 15px;
+            text-align: center;
+            font-size: 2.2em;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            -webkit-box-shadow: 0 4px 12px rgba(37,99,235,0.2);
+            -moz-box-shadow: 0 4px 12px rgba(37,99,235,0.2);
+            box-shadow: 0 4px 12px rgba(37,99,235,0.2);
+        }
+        h2 { 
+            background: #2563eb;
+            background: -webkit-linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            background: -moz-linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 25px 0 15px 0;
+            font-size: 1.3em;
+            -webkit-box-shadow: 0 2px 6px rgba(37,99,235,0.2);
+            -moz-box-shadow: 0 2px 6px rgba(37,99,235,0.2);
+            box-shadow: 0 2px 6px rgba(37,99,235,0.2);
+            cursor: pointer;
+            position: relative;
+        }
+        h3 {
+            color: #1a365d;
+            margin-top: 20px;
+        }
+        
+        .toggle-section.collapsed {
+            display: none;
+        }
+        pre { 
+            background-color: #f5f5f5; 
+            padding: 10px; 
+            border-radius: 5px; 
+            overflow: auto;
+            font-family: Consolas, monospace;
+            font-size: 14px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            -webkit-box-shadow: 0 2px 8px rgba(37,99,235,0.1);
+            -moz-box-shadow: 0 2px 8px rgba(37,99,235,0.1);
+            box-shadow: 0 2px 8px rgba(37,99,235,0.1);
+            border: 1px solid #e2e8f0;
+        }
+        th {
+            background: #1e40af;
+            background: -webkit-linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3730a3 100%);
+            background: -moz-linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3730a3 100%);
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3730a3 100%); 
+            color: white; 
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+            padding: 12px 15px;
+        }
+        td {
+            border: 1px solid #e2e8f0;
+            padding: 12px 15px;
+            text-align: left;
+            line-height: 1.5;
+        }
+        tr:nth-child(even) {
+            background-color: #f1f5f9;
+        }
+        tr:hover {
+            background-color: #e0e7ff;
+        }
+        .section { 
+            margin-bottom: 25px; 
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            -webkit-box-shadow: 0 2px 10px rgba(37,99,235,0.08);
+            -moz-box-shadow: 0 2px 10px rgba(37,99,235,0.08);
+            box-shadow: 0 2px 10px rgba(37,99,235,0.08);
+            border: 1px solid #e2e8f0;
+        }
+        .success { color: green; }
+        .warning { color: orange; }
+        .danger { color: red; }
+        .info { 
+            background-color: #e6f7ff; 
+            border-left: 4px solid #1890ff;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .info { 
+            background-color: #e6f7ff; 
+            border-left: 4px solid #1890ff;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .summary {
+            background: #ffffff;
+            background: -webkit-linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            background: -moz-linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border: 2px solid #e2e8f0;
+            -webkit-box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+            -moz-box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+            box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+        }
+        .exec-summary {
+            background: #dbeafe;
+            background: -webkit-linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            background: -moz-linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border: 2px solid #2563eb;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px 0;
+            -webkit-box-shadow: 0 6px 16px rgba(37,99,235,0.15);
+            -moz-box-shadow: 0 6px 16px rgba(37,99,235,0.15);
+            box-shadow: 0 6px 16px rgba(37,99,235,0.15);
+        }
+        .kpi {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin-right: 12px;
+            margin-bottom: 8px;
+            -webkit-box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            -moz-box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+        }
+        .kpi-good { 
+            background: #dcfce7;
+            background: -webkit-linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            background: -moz-linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); 
+            color: #15803d; 
+            border: 1px solid #16a34a;
+        }
+        .kpi-mid { 
+            background: #fed7aa;
+            background: -webkit-linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+            background: -moz-linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+            background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); 
+            color: #c2410c; 
+            border: 1px solid #ea580c;
+        }
+        .kpi-bad { 
+            background: #fecaca;
+            background: -webkit-linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+            background: -moz-linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%); 
+            color: #b91c1c; 
+            border: 1px solid #dc2626;
+        }
+        .small { color: #555; font-size: 13px; }
+        .status-ok { color: #1b5e20; font-weight: bold; }
+        .status-warn { color: #e65100; font-weight: bold; }
+        .status-fail { color: #b71c1c; font-weight: bold; }
+        
+        /* Filter buttons styles */
+        .filter-btn {
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .filter-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        
+        .filter-btn.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+        }
+        
+        .filter-btn.critical { border-color: #dc2626; color: #dc2626; }
+        .filter-btn.critical.active { background: #dc2626; color: white; }
+        .filter-btn.high { border-color: #ea580c; color: #ea580c; }
+        .filter-btn.high.active { background: #ea580c; color: white; }
+        .filter-btn.medium { border-color: #d97706; color: #d97706; }
+        .filter-btn.medium.active { background: #d97706; color: white; }
+        .filter-btn.low { border-color: #16a34a; color: #16a34a; }
+        .filter-btn.low.active { background: #16a34a; color: white; }
+        
+        .recommendation-row.hidden { display: none !important; }
+        
+        footer {
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <h1>Rapport d'audit de sécurité Windows</h1>
+    <div class="summary">
+        <p><strong>Machine:</strong> WIN-RNGUKIGIR06</p>
+        <p><strong>Date:</strong> 01/07/2026 12:53:51</p>
+        <p><strong>Système d'exploitation:</strong> Microsoft Windows Server 2019 Standard</p>
+        <p><strong>Version:</strong> 10.0.17763</p>
+    </div>
+
+    <div class="summary" id="executive-summary">
+        <h2 style="margin-top:0">Résumé exécutif</h2>
+        <p><strong>Machine:</strong> WIN-RNGUKIGIR06 &nbsp;|&nbsp; <strong>Date:</strong> 01/07/2026 12:53:51</p>
+        <p><strong>Système d'exploitation:</strong> Microsoft Windows Server 2019 Standard &nbsp;|&nbsp; <strong>Version:</strong> 10.0.17763</p>
+        <p><strong>Score de conformité:</strong> <span style="font-size:22px;font-weight:800;">20/100</span>
+           &nbsp;—&nbsp; <strong>Appréciation:</strong> RISQUE MODERE - 2 vulnerabilite(s) majeure(s)</p>
+        <p><strong>Constats:</strong>
+           <span class="kpi kpi-good">OK: 11</span>
+           <span class="kpi kpi-mid">WARN: 14</span>
+           <span class="kpi kpi-bad">FAIL: 3</span>
+        </p>
+
+        <h3>Points prioritaires (Top)</h3>
+        <ul><li><span class="status-fail">FAIL</span> <strong>WDigest</strong> - Desactiver le stockage de mots de passe en clair via WDigest (UseLogonCredential=0) et s'assurer que les correctifs adequats sont appliques.</li><li><span class="status-fail">FAIL</span> <strong>LAPS</strong> - Deployer Windows LAPS pour gerer et faire tourner automatiquement les mots de passe des comptes administrateur locaux.</li><li><span class="status-fail">FAIL</span> <strong>BitLocker</strong> - BitLocker n'est pas installe ou disponible sur ce systeme. Installer et configurer BitLocker pour chiffrer les volumes sensibles.</li><li><span class="status-warn">WARN</span> <strong>Version OS</strong> - Version Windows obsolete ou non supportee. Mettre a jour vers une version supportee pour recevoir les correctifs de securite.</li><li><span class="status-warn">WARN</span> <strong>Exploit Guard - Controle d'acces aux dossiers</strong> - L'acces controle aux dossiers n'est pas active. Activer cette protection contre les ransomwares.</li></ul>
+        
+    </div>
+
+    <h2>Table des matières</h2>
+    <ul>
+        <li><a href="#executive-summary">Résumé exécutif</a></li>
+        <li><a href="#system-info">Informations système</a></li>
+        <li><a href="#group-policy">Stratégies de groupe</a></li>
+        <li><a href="#users-groups">Utilisateurs et groupes</a></li>
+        <li><a href="#authentication">Authentification</a></li>
+        <li><a href="#services-processes">Services et processus</a></li>
+        <li><a href="#network">Réseau</a></li>
+        <li><a href="#software-security">Logiciels et sécurité</a></li>
+        <li><a href="#storage">Stockage</a></li>
+        <li><a href="#logging-audit">Journalisation et audit</a></li>
+        <li><a href="#recommendations">Recommandations de sécurité</a></li>
+    </ul>
+
+    <h2 id="system-info">Informations système</h2>
+    <div class="section">
+        <table>
+            <tr><th>Propriété</th><th>Valeur</th></tr>
+            <tr><td>Nom de l'ordinateur</td><td>WIN-RNGUKIGIR06</td></tr>
+            <tr><td>Domaine</td><td>WORKGROUP</td></tr>
+            <tr><td>Fabricant</td><td>innotek GmbH</td></tr>
+            <tr><td>Modèle</td><td>VirtualBox</td></tr>
+            <tr><td>Version BIOS</td><td>VirtualBox</td></tr>
+            <tr><td>Système d'exploitation</td><td>Microsoft Windows Server 2019 Standard</td></tr>
+            <tr><td>Version</td><td>10.0.17763</td></tr>
+            <tr><td>Build</td><td>17763</td></tr>
+            <tr><td>Architecture</td><td>64-bit</td></tr>
+            <tr><td>Dernier démarrage</td><td>01/07/2026 12:40:06</td></tr>
+            <tr><td>Date d'installation</td><td>03/01/2025 10:09:33</td></tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="systeminfo.txt">Informations système complètes</a></li>
+        </ul>
+    </div>
+
+    <h2 id="group-policy">Stratégies de groupe</h2>
+    <div class="section">
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="gpo-report.html">Rapport GPO complet</a></li>
+            <li><a href="secpol.cfg">Configuration de la politique de sécurité</a></li>
+        </ul>
+    </div>
+
+    <h2 id="users-groups">Utilisateurs et groupes</h2>
+    <div class="section">
+        <h3>Résumé des utilisateurs</h3>
+        <table>
+            <tr><th>Type</th><th>Nombre</th></tr>
+            <tr><td>Utilisateurs activés</td><td>2</td></tr>
+            <tr><td>Utilisateurs désactivés</td><td>3</td></tr>
+            <tr><td>Total des groupes locaux</td><td>25</td></tr>
+        </table>
+        
+        <h3>Membres du groupe Administrateurs</h3>
+        <pre>Name                          SID                                            PrincipalSource
+----                          ---                                            ---------------
+WIN-RNGUKIGIR06\Administrator S-1-5-21-3169461157-2362978336-2485275196-500            Local
+WIN-RNGUKIGIR06\michel        S-1-5-21-3169461157-2362978336-2485275196-1000           Local</pre>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="user-rights.txt">Droits utilisateur spéciaux</a></li>
+        </ul>
+    </div>
+
+    <h2 id="authentication">Authentification</h2>
+    <div class="section">
+        <h3>Solutions d'authentification</h3>
+        <table>
+            <tr><th>Mécanisme</th><th>État</th></tr>
+            <tr>
+                <td>LAPS (Local Administrator Password Solution)</td>
+                <td class="warning">Non installe</td>
+            </tr>
+            <tr>
+                <td>Windows Hello for Business (GPO)</td>
+                <td class="warning">Desactive ou non configure</td>
+            </tr>
+            <tr>
+                <td>UAC (User Account Control)</td>
+                <td class="success">Active</td>
+            </tr>
+            <tr>
+                <td>JEA (Just Enough Administration)</td>
+                <td class="info">Non configure</td>
+            </tr>
+        </table>
+        
+        <h3>Protection des identifiants</h3>
+        <table>
+            <tr><th>Protection</th><th>État</th></tr>
+            <tr>
+                <td>Protection LSASS (RunAsPPL)</td>
+                <td class="danger">Desactive</td>
+            </tr>
+            <tr>
+                <td>WDigest (stockage en clair des mots de passe)</td>
+                <td class="danger">Active (vulnerable)</td>
+            </tr>
+            <tr>
+                <td>Credential Guard</td>
+                <td class="warning">Inactif ou non disponible</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2 id="services-processes">Services et processus</h2>
+    <div class="section">
+        <h3>Services critiques</h3>
+        <table>
+            <tr><th>Service</th><th>État</th></tr>
+            <tr>
+                <td>RDP (Remote Desktop Protocol)</td>
+                <td class="success">Desactive</td>
+            </tr>
+            <tr>
+                <td>WinRM (Windows Remote Management)</td>
+                <td class="warning">Active</td>
+            </tr>
+        </table>
+        
+        <h3>Statistiques des services</h3>
+        <p>Nombre de services en cours d'exécution: 72</p>
+        <p>Nombre de services automatiques arrêtés: 2</p>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="winrm-config.txt">Configuration WinRM</a></li>
+        </ul>
+    </div>
+
+    <h2 id="network">Réseau</h2>
+    <div class="section">
+        <h3>Configuration de base</h3>
+        <pre>InterfaceAlias InterfaceDescription                    IPv4Address       IPv6Address                            DNSServ
+                                                                                                                er     
+-------------- --------------------                    -----------       -----------                            -------
+Ethernet       Intel(R) PRO/1000 MT Desktop Adapter    {10.0.2.15}       {fd17:625c:f037:2:31f9:c836:588d:474d} {MSF...
+Ethernet 2     Intel(R) PRO/1000 MT Desktop Adapter #2 {169.254.135.203} {}                                     {MSF...</pre>
+        
+        <h3>Pare-feu Windows</h3>
+        <pre>Name    Enabled DefaultInboundAction DefaultOutboundAction LogAllowed LogBlocked    LogIgnored
+----    ------- -------------------- --------------------- ---------- ----------    ----------
+Domain     True        NotConfigured         NotConfigured      False      False NotConfigured
+Private    True        NotConfigured         NotConfigured      False      False NotConfigured
+Public     True        NotConfigured         NotConfigured      False      False NotConfigured</pre>
+        
+        <h3>Configurations SMB</h3>
+        <table>
+            <tr><th>Élément</th><th>État</th></tr>
+            <tr>
+                <td>SMBv1 (version vulnérable)</td>
+                <td class="success">Desactive (securise)</td>
+            </tr>
+            <tr>
+                <td>Nombre de partages SMB</td>
+                <td>4</td>
+            </tr>
+        </table>
+        
+        <h3>Ports en écoute</h3>
+        <p>Nombre de ports en écoute: 19</p>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="ipconfig.txt">Configuration IP complète</a></li>
+            <li><a href="firewall-rules.txt">Règles de pare-feu détaillées</a></li>
+            <li><a href="netstat.txt">Connexions réseau actives</a></li>
+        </ul>
+    </div>
+
+    <h2 id="software-security">Logiciels et sécurité</h2>
+    <div class="section">
+        <h3>Applications installées</h3>
+        <p>Nombre total d'applications installées: 1</p>
+        
+        <h3>Windows Defender</h3>
+        <table>
+            <tr><th>Paramètre</th><th>Valeur</th></tr>
+            <tr>
+                <td>Statut</td>
+                <td class="success">Active</td>
+            </tr>
+            <tr>
+                <td>Protection en temps réel</td>
+                <td class="success">Activee</td>
+            </tr>
+            <tr><td>Version du moteur</td><td>1.1.25110.1</td></tr>
+            <tr><td>Version des signatures</td><td>1.443.543.0</td></tr>
+            <tr>
+                <td>Âge des signatures (jours)</td>
+                <td class="success">0</td>
+            </tr>
+        </table>
+        
+        <h3>Protections avancées</h3>
+        <table>
+            <tr><th>Protection</th><th>État</th></tr>
+            <tr>
+                <td>AppLocker</td>
+                <td class="success">Active</td>
+            </tr>
+            <tr>
+                <td>Device Guard</td>
+                <td class="warning">Desactive ou non disponible</td>
+            </tr>
+            <tr>
+                <td>Exploit Guard - Protection des dossiers contrôlés</td>
+                <td class="warning">Desactive</td>
+            </tr>
+            <tr>
+                <td>Exploit Guard - Protection réseau</td>
+                <td class="warning">Desactive</td>
+            </tr>
+        </table>
+        
+        <h3>PowerShell</h3>
+        <table>
+            <tr><th>Paramètre</th><th>Valeur</th></tr>
+            <tr>
+                <td>Mode de langage</td>
+                <td class="warning">FullLanguage</td>
+            </tr>
+            <tr>
+                <td>Stratégie d'exécution</td>
+                <td class="warning">RemoteSigned</td>
+            </tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="applocker-policy.xml">Politique AppLocker</a></li>
+            <li><a href="ps-executionpolicy.txt">Configuration détaillée des stratégies d'exécution PowerShell</a></li>
+        </ul>
+    </div>
+
+    <h2 id="storage">Stockage</h2>
+    <div class="section">
+        <h3>Disques et volumes</h3>
+        <pre>DriveLetter FileSystemLabel FileSystem DriveType HealthStatus SizeRemaining        Size
+----------- --------------- ---------- --------- ------------ -------------        ----
+          C                 NTFS       Fixed     Healthy        40983461888 53109321728
+          D                            CD-ROM    Healthy                  0           0</pre>
+        
+        <h3>BitLocker</h3>
+        <table>
+            <tr><th>Volume</th><th>État</th><th>Méthode de chiffrement</th><th>État de protection</th></tr>
+            <tr><td colspan='4'>Aucune information BitLocker disponible</td></tr>
+        </table>
+        
+        <h3>Protection des disques amovibles</h3>
+        <table>
+            <tr><th>Protection</th><th>État</th></tr>
+            <tr>
+                <td>AutoRun désactivé pour tous les lecteurs</td>
+                <td class="warning">Non (potentiellement vulnerable)</td>
+            </tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="windows-folder-acl.txt">ACL du dossier Windows</a></li>
+            <li><a href="bitlocker-status.txt">État détaillé de BitLocker</a></li>
+            <li><a href="ntfs-info.txt">Configuration NTFS</a></li>
+        </ul>
+    </div>
+
+    <h2 id="logging-audit">Journalisation et audit</h2>
+    <div class="section">
+        <h3>Configuration des journaux d'événements</h3>
+        <pre>LogName      LogMode MaximumSizeInBytes IsEnabled RecordCount
+-------      ------- ------------------ --------- -----------
+Application Circular           20971520      True         352
+System      Circular           20971520      True        3765
+Security    Circular           20971520      True        6746</pre>
+        
+        <h3>Solutions de journalisation avancées</h3>
+        <table>
+            <tr><th>Solution</th><th>État</th></tr>
+            <tr>
+                <td>Redirection des événements (Event Forwarding)</td>
+                <td class="success">Active</td>
+            </tr>
+            <tr>
+                <td>Sysmon</td>
+                <td class="warning">Non installe</td>
+            </tr>
+            <tr>
+                <td>PowerShell Script Block Logging</td>
+                <td class="warning">Desactive ou non configure</td>
+            </tr>
+            <tr>
+                <td>PowerShell Transcription</td>
+                <td class="warning">Desactive ou non configure</td>
+            </tr>
+        </table>
+        
+        <h3>Fichiers détaillés</h3>
+        <ul>
+            <li><a href="audit-policy.txt">Politique d'audit complète</a></li>
+        </ul>
+    </div>
+
+    <h2 id="recommendations">Recommandations de sécurité</h2>
+    <div class="section">
+        <p>Les recommandations ci-dessous sont générées en fonction de l'état observé pendant l'audit (OK/WARN/FAIL).</p>
+        
+            <!-- Filtres par sévérité -->
+            <div style="margin: 20px 0; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <h3 style="margin-top: 0; color: #1a365d;">🔍 Filtrer par sévérité :</h3>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterBySeverity('all')" style="margin-right: 10px; margin-bottom: 8px;">
+                        📋 Toutes ()
+                    </button>
+                    <button class="filter-btn critical" onclick="filterBySeverity('critical')" style="margin-right: 10px; margin-bottom: 8px;">
+                        🔴 Critique ()
+                    </button>
+                    <button class="filter-btn high" onclick="filterBySeverity('high')" style="margin-right: 10px; margin-bottom: 8px;">
+                        🟠 Élevée ()
+                    </button>
+                    <button class="filter-btn medium" onclick="filterBySeverity('medium')" style="margin-right: 10px; margin-bottom: 8px;">
+                        🟡 Moyenne ()
+                    </button>
+                    <button class="filter-btn low" onclick="filterBySeverity('low')" style="margin-bottom: 8px;">
+                        🟢 Faible ()
+                    </button>
+                </div>
+            </div>        <table id="recommendations-table">>
+            <tr>
+                <th>Catégorie</th>
+                <th>Contrôle</th>
+                <th>État</th>
+                <th>Sévérité</th>
+                <th>Recommandation</th>
+                <th>Référence</th>
+            </tr>
+            <tr><td>ServicesAndProcesses</td><td>Configuration RDP</td><td class='status-ok'>OK</td><td>Low</td><td>RDP est desactive. Si l'acces distant est necessaire, utiliser des solutions plus securisees comme SSH ou VPN.</td><td><a href='https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/best-practices-configuring' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>ServicesAndProcesses</td><td>WinRM</td><td class='status-warn'>WARN</td><td>Medium</td><td>WinRM est active. Verifier la configuration HTTPS, l'authentification et limiter les connexions aux hotes autorises.</td><td><a href='https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_remote_requirements' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>ServicesAndProcesses</td><td>Services automatiques arretes</td><td class='status-ok'>OK</td><td>Low</td><td>Nombre acceptable de services automatiques arretes. Continuer a surveiller regulierement.</td><td><a href='https://learn.microsoft.com/troubleshoot/windows-server/performance/optimize-windows-server-performance' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Network</td><td>SMBv1</td><td class='status-ok'>OK</td><td>Low</td><td>SMBv1 est desactive. Maintenir cette configuration et utiliser SMBv3 uniquement.</td><td><a href='https://learn.microsoft.com/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Network</td><td>Pare-feu Public</td><td class='status-ok'>OK</td><td>Medium</td><td>Le pare-feu est active pour le profil Public. Verifier les regles autorisees et minimiser les exceptions.</td><td><a href='https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/best-practices-configuring' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Network</td><td>Ports sensibles</td><td class='status-warn'>WARN</td><td>High</td><td>Plusieurs ports sensibles sont ouverts (Telnet, RPC, NetBIOS, SMB, SQL, RDP). Fermer les ports inutiles.</td><td><a href='https://learn.microsoft.com/windows-server/networking/technologies/netsh/netsh-contexts' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>UsersAndGroups</td><td>Membres administrateurs</td><td class='status-ok'>OK</td><td>Low</td><td>Nombre approprie d'administrateurs (2 membres). Continuer a surveiller les modifications.</td><td><a href='https://learn.microsoft.com/windows/security/identity-protection/access-control/local-accounts' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>UsersAndGroups</td><td>Comptes desactives</td><td class='status-warn'>WARN</td><td>Medium</td><td>Trop de comptes desactives (3). Nettoyer les comptes inutiles.</td><td><a href='https://learn.microsoft.com/windows/security/identity-protection/access-control/local-accounts' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>GroupPolicy</td><td>Configuration GPO</td><td class='status-ok'>OK</td><td>Low</td><td>Les strategies de groupe ont ete exportees pour analyse. Verifier les configurations de securite dans secpol.cfg et le rapport HTML.</td><td><a href='https://learn.microsoft.com/windows/security/threat-protection/security-policy-settings/' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>GroupPolicy</td><td>Outils de gestion GPO</td><td class='status-warn'>WARN</td><td>Medium</td><td>Les outils RSAT ne sont pas installes ou il ne s'agit pas d'un controleur de domaine. Installer les outils pour une gestion complete.</td><td><a href='https://learn.microsoft.com/windows-server/remote/remote-server-administration-tools' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>LoggingAndAudit</td><td>Sysmon</td><td class='status-warn'>WARN</td><td>High</td><td>Sysmon n'est pas installe. Deployer Sysmon pour une journalisation avancee des evenements systeme.</td><td><a href='https://learn.microsoft.com/sysinternals/downloads/sysmon' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>LoggingAndAudit</td><td>PowerShell Script Block Logging</td><td class='status-warn'>WARN</td><td>Medium</td><td>La journalisation des blocs de script PowerShell n'est pas activee. Activer pour detecter les activites malveillantes.</td><td><a href='https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_logging' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>LoggingAndAudit</td><td>PowerShell Transcription</td><td class='status-warn'>WARN</td><td>Medium</td><td>La transcription PowerShell n'est pas activee. Activer pour enregistrer toutes les sessions PowerShell.</td><td><a href='https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_logging' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>LoggingAndAudit</td><td>Taille log Security</td><td class='status-warn'>WARN</td><td>Medium</td><td>Le journal Security est configure avec une taille maximale insuffisante. Augmenter a au moins 100 MB.</td><td><a href='https://learn.microsoft.com/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Storage</td><td>BitLocker</td><td class='status-fail'>FAIL</td><td>High</td><td>BitLocker n'est pas installe ou disponible sur ce systeme. Installer et configurer BitLocker pour chiffrer les volumes sensibles.</td><td><a href='https://learn.microsoft.com/windows/security/operating-system-security/data-protection/bitlocker/' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Storage</td><td>ACL dossiers critiques</td><td class='status-ok'>OK</td><td>Low</td><td>Les permissions sur les dossiers critiques semblent appropriees. Continuer a surveiller.</td><td><a href='https://learn.microsoft.com/windows/security/operating-system-security/data-protection/configuring-file-system-permissions' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Storage</td><td>AutoRun</td><td class='status-warn'>WARN</td><td>Medium</td><td>L'execution automatique n'est pas completement desactivee. Desactiver AutoRun pour tous les types de lecteurs.</td><td><a href='https://support.microsoft.com/topic/how-to-disable-the-autorun-functionality-in-windows-6f7b0c43-3e56-d2b3-4c3d-c44fe38c8c2e' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>SoftwareAndSecurity</td><td>Windows Defender</td><td class='status-ok'>OK</td><td>Low</td><td>Windows Defender est active. Verifier la frequence de mise a jour des signatures et la protection temps reel.</td><td><a href='https://learn.microsoft.com/windows/security/operating-system-security/system-security/windows-defender-antivirus/' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>SoftwareAndSecurity</td><td>Exploit Guard - Controle d'acces aux dossiers</td><td class='status-warn'>WARN</td><td>High</td><td>L'acces controle aux dossiers n'est pas active. Activer cette protection contre les ransomwares.</td><td><a href='https://learn.microsoft.com/windows/security/operating-system-security/system-security/windows-defender-exploit-guard/controlled-folders' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>SoftwareAndSecurity</td><td>PowerShell Language Mode</td><td class='status-warn'>WARN</td><td>Medium</td><td>PowerShell fonctionne en mode FullLanguage. Considerer le mode ConstrainedLanguage avec AppLocker/Device Guard.</td><td><a href='https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_language_modes' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>SoftwareAndSecurity</td><td>PowerShell Execution Policy</td><td class='status-ok'>OK</td><td>Low</td><td>La politique d'execution PowerShell est appropriee. Maintenir cette configuration.</td><td><a href='https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Authentication</td><td>LAPS</td><td class='status-fail'>FAIL</td><td>High</td><td>Deployer Windows LAPS pour gerer et faire tourner automatiquement les mots de passe des comptes administrateur locaux.</td><td><a href='https://learn.microsoft.com/windows-server/identity/laps/laps-overview' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Authentication</td><td>UAC</td><td class='status-ok'>OK</td><td>Low</td><td>UAC est active. Verifier les parametres de securite (Secure Desktop, niveau d'invite).</td><td><a href='https://learn.microsoft.com/windows/security/application-security/application-control/user-account-control/' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Authentication</td><td>LSASS protection (RunAsPPL)</td><td class='status-warn'>WARN</td><td>High</td><td>Activer la protection renforcee de LSASS (RunAsPPL) pour reduire l'injection et le vol d'identifiants en memoire.</td><td><a href='https://learn.microsoft.com/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Authentication</td><td>WDigest</td><td class='status-fail'>FAIL</td><td>Critical</td><td>Desactiver le stockage de mots de passe en clair via WDigest (UseLogonCredential=0) et s'assurer que les correctifs adequats sont appliques.</td><td><a href='https://support.microsoft.com/topic/microsoft-security-advisory-update-to-improve-credentials-protection-and-management-may-13-2014-93434251-04ac-b7f3-52aa-9f951c14b649' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>Authentication</td><td>Credential Guard</td><td class='status-warn'>WARN</td><td>High</td><td>Activer Microsoft Defender Credential Guard (VBS) lorsque compatible, notamment sur les VMs supportees.</td><td><a href='https://learn.microsoft.com/windows/security/identity-protection/credential-guard/configure' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>SystemInfo</td><td>Version OS</td><td class='status-warn'>WARN</td><td>High</td><td>Version Windows obsolete ou non supportee. Mettre a jour vers une version supportee pour recevoir les correctifs de securite.</td><td><a href='https://learn.microsoft.com/lifecycle/products/windows-10-home-and-pro' target='_blank' rel='noopener'>Lien</a></td></tr>
+<tr><td>SystemInfo</td><td>Redemarrage systeme</td><td class='status-ok'>OK</td><td>Low</td><td>Redemarrage recent du systeme. Maintenir des redemarrages reguliers.</td><td><a href='https://learn.microsoft.com/windows/deployment/update/waas-restart' target='_blank' rel='noopener'>Lien</a></td></tr>
+
+        </table>
+    </div>
+
+    <footer>
+        <p>Rapport généré le 01/07/2026 12:53:51 sur WIN-RNGUKIGIR06</p>
+        <p>Script d'audit de sécurité Windows - Version 1.0</p>
+    </footer>
+    </div>
+
+    <script>
+        // Filtrage par sévérité
+        function filterBySeverity(severity) {
+            var table = document.getElementById('recommendations-table');
+            var rows = table.getElementsByTagName('tr');
+            var buttons = document.getElementsByClassName('filter-btn');
+            
+            // Reset active button
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].className = buttons[i].className.replace(' active', '');
+            }
+            
+            // Set active button
+            var activeButton = document.querySelector('.filter-btn.' + severity);
+            if (!activeButton && severity === 'all') {
+                activeButton = document.querySelector('.filter-btn');
+            }
+            if (activeButton) {
+                activeButton.className += ' active';
+            }
+            
+            // Filter rows (skip header row)
+            for (var i = 1; i < rows.length; i++) {
+                var row = rows[i];
+                var severityCell = row.getElementsByTagName('td')[3]; // 4th column (0-indexed)
+                
+                if (severityCell) {
+                    var cellText = severityCell.textContent || severityCell.innerText || '';
+                    cellText = cellText.toLowerCase().trim();
+                    
+                    var show = false;
+                    if (severity === 'all') {
+                        show = true;
+                    } else if (severity === 'critical' && (cellText.indexOf('critique') !== -1 || cellText.indexOf('critical') !== -1)) {
+                        show = true;
+                    } else if (severity === 'high' && (cellText.indexOf('élevée') !== -1 || cellText.indexOf('élevé') !== -1 || cellText.indexOf('high') !== -1)) {
+                        show = true;
+                    } else if (severity === 'medium' && (cellText.indexOf('moyenne') !== -1 || cellText.indexOf('moyen') !== -1 || cellText.indexOf('medium') !== -1)) {
+                        show = true;
+                    } else if (severity === 'low' && (cellText.indexOf('faible') !== -1 || cellText.indexOf('low') !== -1)) {
+                        show = true;
+                    }
+                    
+                    if (show) {
+                        row.style.display = '';
+                        row.className = row.className.replace(' hidden', '');
+                    } else {
+                        row.style.display = 'none';
+                        if (row.className.indexOf(' hidden') === -1) {
+                            row.className += ' hidden';
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+
