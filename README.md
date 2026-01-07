@@ -17,7 +17,7 @@ codés par couleur dans la sortie HTML.
 
 ## ⚠️ Instructions importantes d’utilisation
 
-Pour que l’audit fonctionne correctement, il est obligatoire d’utiliser les trois fichiers suivants ensemble, dans le même répertoire :
+**Pour que l’audit fonctionne correctement, il est obligatoire d’utiliser les trois fichiers suivants ensemble, dans le même répertoire** :
 
 - audit_windows_security.ps1 : script principal qui lance l’audit et collecte toutes les données de sécurité.
 - Export-AuditResults.ps1 : script chargé d’agréger les résultats et de générer les différents formats de rapport (HTML, TXT).
