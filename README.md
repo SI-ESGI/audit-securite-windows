@@ -15,6 +15,14 @@ résumés exécutifs pour la direction. Chaque domaine d'audit
 est examiné en profondeur avec des indicateurs de sécurité
 codés par couleur dans la sortie HTML.
 
+##Instructions importantes d’utilisation
+
+Pour que l’audit fonctionne correctement, il est obligatoire d’utiliser les trois fichiers suivants ensemble, dans le même répertoire :
+
+- audit_windows_security.ps1 : script principal qui lance l’audit et collecte toutes les données de sécurité.
+- Export-AuditResults.ps1 : script chargé d’agréger les résultats et de générer les différents formats de rapport (HTML, TXT).
+- audit-report-template.html : modèle HTML utilisé pour mettre en forme le rapport graphique (couleurs, sections, tableaux, résumé exécutif).
+
 
 ## Pré-requis :
 
