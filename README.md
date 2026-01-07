@@ -15,7 +15,7 @@ résumés exécutifs pour la direction. Chaque domaine d'audit
 est examiné en profondeur avec des indicateurs de sécurité
 codés par couleur dans la sortie HTML.
 
-##Instructions importantes d’utilisation
+## Instructions importantes d’utilisation
 
 Pour que l’audit fonctionne correctement, il est obligatoire d’utiliser les trois fichiers suivants ensemble, dans le même répertoire :
 
